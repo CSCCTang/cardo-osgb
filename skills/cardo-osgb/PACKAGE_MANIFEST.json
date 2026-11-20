@@ -1,0 +1,247 @@
+{
+  "schema": "cardo/lowair-package-manifest/v1",
+  "schemaVersion": 1,
+  "generator": "Skills/00-Cardo低空解析总控/scripts/package_manifest.py",
+  "files": {
+    "Skills/00-Cardo低空解析总控/scripts/pipeline.py": {
+      "bytes": 53145,
+      "sha256": "2dc7b287c26ef6d75b0b61b597ce495cd8c17a0be002f1c550595be77adbe30f"
+    },
+    "Skills/00-Cardo低空解析总控/scripts/export_algo_table.py": {
+      "bytes": 15343,
+      "sha256": "2f3fe61ae5bf0fa08699cbb1b20f38054264a70640a011efc766f323401214d1"
+    },
+    "Skills/01-模型包接入/scripts/unpack_model.py": {
+      "bytes": 30786,
+      "sha256": "b5ecbe0fac3b6e8fd56911884f8642fedb0782fd3c66b6a68c9b83777a9ffc8e"
+    },
+    "Skills/02-工具探测/scripts/probe_tools.py": {
+      "bytes": 10396,
+      "sha256": "57c011973003e5c1273f1f24d9cac6953ed9a466cfc21cf9f6b5f6e179a147d9"
+    },
+    "Skills/02-工具探测/scripts/fetch_tools.py": {
+      "bytes": 5378,
+      "sha256": "4a2cbc9c8dea636f6cea511d345c0739ce9aabf6b0120352adc147df3def8e6f"
+    },
+    "Skills/02-工具探测/scripts/verify_tools.py": {
+      "bytes": 6940,
+      "sha256": "2988a80329e8e4b6f0cb26a0c2a1647a0dc323233f2b3a159d358b25a966d195"
+    },
+    "Skills/03-OSGB转3DTiles/scripts/convert.py": {
+      "bytes": 16775,
+      "sha256": "5a20d6c80b3447ae4f9c04e15924bdd0b872fbf0a2eeccecbe6612968fdb2cf1"
+    },
+    "Skills/04-垂直配准修正/scripts/fix_registration.py": {
+      "bytes": 7239,
+      "sha256": "74b8ff1c17d987fed9d9bc3e4bcd5db4b233b36f466d84dd025f9ceaa84f6e02"
+    },
+    "Skills/05-模型体检/scripts/inspect_model.py": {
+      "bytes": 40958,
+      "sha256": "ee95432fd2095299e6132f1132e5fd899c359fe836517a0ed638536d3f573ad4"
+    },
+    "Skills/05-模型体检/scripts/check_contract.py": {
+      "bytes": 12179,
+      "sha256": "9613194b951ed379acddfb58ad21a41050ded46404f0d64704abeff935d87b7a"
+    },
+    "Skills/06-2.5D网格指标/scripts/build_indicators.py": {
+      "bytes": 5864,
+      "sha256": "79fba67f665f1a843ac54993d528d79492410cfef4f6d92e4337712d04d25fed"
+    },
+    "Skills/06-2.5D网格指标/scripts/run_indicators.py": {
+      "bytes": 45340,
+      "sha256": "691031a2866c3b43cdabbf2cabfe3db1cbe12acfc48a90e4c070b27e03b27437"
+    },
+    "Skills/06-2.5D网格指标/scripts/texture_materials.py": {
+      "bytes": 31780,
+      "sha256": "1ab183b27e22f8d863182189f742c970e1f401f654a0a03500261f1a1d0f2df1"
+    },
+    "Skills/06-2.5D网格指标/scripts/validate_texture_truth.py": {
+      "bytes": 9152,
+      "sha256": "bef8bf140744a156452e7b1add4140cc1a45d84c80212df8e4fa591606fcfda5"
+    },
+    "Skills/07-成果导出/scripts/export_deliverables.py": {
+      "bytes": 165342,
+      "sha256": "4e1a53b67627eb9199282f45679a5277cfe6dc6bbf39a9054ef896f2fe30a81a"
+    },
+    "Skills/07-成果导出/scripts/build_browse_package.py": {
+      "bytes": 38252,
+      "sha256": "0dd21611dd47f33d2015a30e42a11801529c86802a4ca6ab71d2a602e9949734"
+    },
+    "Skills/07-成果导出/scripts/readability.py": {
+      "bytes": 32066,
+      "sha256": "b4d7b098c8192ad91f859cdfa8574c13590528c133103326c1b5c6701e9142b4"
+    },
+    "Skills/07-成果导出/scripts/build_evidence_xlsx.py": {
+      "bytes": 34742,
+      "sha256": "66105878974e7be2750ad3c075d1df56b7b9836c2feb1d7884bb00817a4c7c4a"
+    },
+    "Skills/07-成果导出/scripts/blank_page_guard.py": {
+      "bytes": 27772,
+      "sha256": "5e7fc1cdc5a5bb5ac92469980053f0228f297d5121d48e0a0ccbc8786978d0e8"
+    },
+    "Skills/07-成果导出/scripts/pdf_render.py": {
+      "bytes": 15942,
+      "sha256": "77e3b3ebe8bba914c901ddb155994ee45ee1f43fa239a6d9189e0e29b779fd7a"
+    },
+    "Skills/08-验证与成稿/scripts/independent_verify.py": {
+      "bytes": 42379,
+      "sha256": "fe40f9106452f88d66791a709485cd5dd19fa60b41a0b7ed9fd5a136b4b0d47b"
+    },
+    "Skills/09-三维要素反演/scripts/run_reconstruct.py": {
+      "bytes": 44853,
+      "sha256": "045c11742b57085bc599e9ce2c58d8c5f771f86223976e147c03f22e682fc910"
+    },
+    "Skills/10-矢量入库/scripts/build_vectors.py": {
+      "bytes": 30706,
+      "sha256": "8c0997b586982fe978896618a1d9d3d5b539d15a6f127389f2949d8f71008433"
+    },
+    "Skills/11-几何增强/scripts/run_enhance.py": {
+      "bytes": 5601,
+      "sha256": "b62ef4547987be2e4538d921ed65cbf05179d38d54c7aa080c0bace7cbc8fcf1"
+    },
+    "Skills/12-屋顶与立面/scripts/run_roof_facade.py": {
+      "bytes": 3390,
+      "sha256": "b5c36e8e8c5afc7bd2896b024e0048be6524b8210b71e32043fe0c150bd0af57"
+    },
+    "Skills/13-矢量增强/scripts/run_vector.py": {
+      "bytes": 4434,
+      "sha256": "3c7e70aeb178b4d0b75ee3810cad9683753aa5a25d8136494b219c954666b5a2"
+    },
+    "Skills/14-扩展指标/scripts/build_extended_metrics.py": {
+      "bytes": 31266,
+      "sha256": "fb97284bbb6ccb3fb7622b54849016e0c305a664c92a177b3c0924bab8da7b6c"
+    },
+    "Skills/14-扩展指标/scripts/build_observable_matrix.py": {
+      "bytes": 20172,
+      "sha256": "d1651584520fcae461ab681a88dcbac737ef2af73691016f49771aa67a75f3be"
+    },
+    "Skills/16-场地要素/scripts/extract_site_features.py": {
+      "bytes": 29518,
+      "sha256": "a7643ffc2131fc688aedc818d621a095ff0eba4e832f293c15dda7b05fa50efd"
+    },
+    "Skills/06-2.5D网格指标/规则/指标口径.md": {
+      "bytes": 11962,
+      "sha256": "91dc1a8ec3a35c726bac5309dba01ca5870129f1a433f8675d6dea47fed97273"
+    },
+    "Skills/06-2.5D网格指标/规则/纹理材质参数.json": {
+      "bytes": 7201,
+      "sha256": "675f3c06b4451b3d8edaf0542cc808c9f710ebc88e0f90978ad8aa1b28a2c411"
+    },
+    "Skills/06-2.5D网格指标/规则/纹理材质识别.md": {
+      "bytes": 10769,
+      "sha256": "494d5c416293f8c5f5e6a1808c1df6af1e81ec069182d15a7c7f9012206724ea"
+    },
+    "Skills/00-Cardo低空解析总控/算法注册表.json": {
+      "bytes": 58087,
+      "sha256": "9ca35e99bcf887a04dac8d99b95a243ff8dad90fe3b8db63bda2bba26a45bd21"
+    },
+    "assets/viewer/VERSION.json": {
+      "bytes": 941,
+      "sha256": "2a07a623db9e8a47be9aeb4aa28fa1d30d821a62c43d5cd27ee240dc8eff610b"
+    },
+    "assets/viewer/许可登记.json": {
+      "bytes": 1417,
+      "sha256": "f5f4942390ca460e7ef48f9e28523a861bb55b6933ddd9bebe4e7557fa879b18"
+    },
+    "assets/viewer/viewer/project.schema.json": {
+      "bytes": 8161,
+      "sha256": "4955aabca1517dbefe08369d8ac5154f271a37f8c5a93e6ec4a65116d2256b12"
+    },
+    "assets/viewer/viewer/2d/index.html": {
+      "bytes": 32879,
+      "sha256": "155154d974f67001917841f08078d92b06828001c904adb71d019ca614b1ab98"
+    },
+    "assets/viewer/viewer/3d/index.html": {
+      "bytes": 9617,
+      "sha256": "ffd36c0454bc06bde86aec7f51fa6936c3e7561f48f008ae70b277a8f4aba1f5"
+    },
+    "assets/viewer/scripts/build_ortho.py": {
+      "bytes": 6189,
+      "sha256": "68eb539889d158b915947a406add1500ed5895157dc73d71113f4ec350defddd"
+    },
+    "assets/viewer/scripts/project_pack.py": {
+      "bytes": 12238,
+      "sha256": "e6d41cf10b3e1fa37629e39c1e011ce7237a273fc08fd93dc1b6eebaf7fc98c7"
+    },
+    "assets/viewer/tool/caddy.exe": {
+      "bytes": 42785280,
+      "sha256": "9b0b71248e8d5739c1cce39141a905833c4a500e655bac6fa5c9672aca0bec9c"
+    },
+    "Skills/02-工具探测/tools/fanvanzh-3dtiles/v0.4/3dtile.exe": {
+      "bytes": 2585600,
+      "sha256": "c7f5c7eed5165b2ecacbb25d0b459c33c20304245897b793d09141715bb379dc"
+    },
+    "Skills/02-工具探测/tools/fanvanzh-3dtiles/v0.4/gdal201.dll": {
+      "bytes": 12137984,
+      "sha256": "72429a90b0ac1e969182c799c9db9430b21aec7f471063c3566ac82408dfaffc"
+    },
+    "Skills/02-工具探测/tools/fanvanzh-3dtiles/v0.4/osg130-osg.dll": {
+      "bytes": 3041280,
+      "sha256": "2c1bf5169912688f3c7fb4ab806dbccb66da4904013c85e11b17bc6aeeecfd2f"
+    },
+    "Skills/02-工具探测/tools/fanvanzh-3dtiles/v0.4/osg130-osgDB.dll": {
+      "bytes": 1191424,
+      "sha256": "2338140288bffdb66bcfe756164814efbb46d7c49c1a013eb1bacafd446b6e88"
+    },
+    "Skills/02-工具探测/tools/fanvanzh-3dtiles/v0.4/osg130-osgUtil.dll": {
+      "bytes": 1795584,
+      "sha256": "de9b137d7685c093e2b9deea830ff3899f637c140e182efbca91c36d9ed5a9e3"
+    },
+    "Skills/02-工具探测/tools/fanvanzh-3dtiles/v0.4/osgPlugins-3.4.0/osgdb_serializers_osg.dll": {
+      "bytes": 1310208,
+      "sha256": "cc8911b75ad9f1c571b55c27e1f45616e33230004e670b8d7e4ecb91d3037534"
+    }
+  },
+  "runtimeDeps": {
+    "docx": {
+      "dir": "docx",
+      "present": false,
+      "sha256": ""
+    },
+    "openpyxl": {
+      "dir": "openpyxl",
+      "present": false,
+      "sha256": ""
+    },
+    "numpy": {
+      "dir": "numpy",
+      "present": false,
+      "sha256": ""
+    },
+    "scipy": {
+      "dir": "scipy",
+      "present": false,
+      "sha256": ""
+    },
+    "Pillow": {
+      "dir": "PIL",
+      "present": false,
+      "sha256": ""
+    },
+    "trimesh": {
+      "dir": "trimesh",
+      "present": false,
+      "sha256": ""
+    },
+    "scikit-image": {
+      "dir": "skimage",
+      "present": false,
+      "sha256": ""
+    },
+    "opencv-python-headless": {
+      "dir": "cv2",
+      "present": false,
+      "sha256": ""
+    },
+    "PyYAML": {
+      "dir": "yaml",
+      "present": false,
+      "sha256": ""
+    }
+  },
+  "runtimePython": {
+    "rel": "runtime/python/python.exe",
+    "present": false,
+    "bytes": 0
+  }
+}

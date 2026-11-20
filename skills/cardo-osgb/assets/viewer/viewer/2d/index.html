@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>二维图层浏览</title>
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<style>
+  :root{--bg:#f6f5f1;--panel:#fffefb;--ink:#23241f;--muted:#6d6f66;--line:#d9d6cc;--accent:#3f6b4a}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font:13px/1.55 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+  #map{position:absolute;inset:0;background:#24241f;z-index:0}
+  .card{position:absolute;z-index:800;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  #leftTop{position:absolute;top:14px;left:14px;z-index:800;display:flex;flex-direction:column;gap:10px;
+           width:290px;max-height:calc(100vh - 28px);pointer-events:none}
+  #leftBottom{position:absolute;bottom:14px;left:14px;z-index:800;display:flex;flex-direction:column;gap:8px;
+           width:290px;max-height:45vh;pointer-events:none}
+  #leftTop>.card,#leftBottom>.card{position:relative;pointer-events:auto}
+  #title{padding:10px 14px;max-width:100%;flex:none}
+  #title h1{margin:0 0 3px;font-size:15px;font-weight:600;letter-spacing:.2px;overflow-wrap:anywhere}
+  #title p{margin:0;color:var(--muted);font-size:11.5px;overflow-wrap:anywhere}
+  #layers{padding:10px 12px;width:196px;flex:0 1 auto;min-height:0;overflow:auto}
+  #layers h2,#indics h2,#charts h2{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.4px}
+  #layers label{display:flex;align-items:center;gap:7px;margin:5px 0;cursor:pointer;user-select:none}
+  #layers input{accent-color:var(--accent);margin:0}
+  .swatch{width:11px;height:11px;border-radius:2px;border:1px solid rgba(0,0,0,.18);flex:none}
+  .opacity{margin:9px 0 2px;padding-top:8px;border-top:1px dashed var(--line)}
+  .opacity span{font-size:11.5px;color:var(--muted)}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  #right{position:absolute;top:14px;right:14px;z-index:800;display:flex;flex-direction:column;gap:10px;
+         width:252px;max-height:calc(100vh - 28px);overflow-y:auto;overflow-x:hidden}
+  #right>.card{position:relative}
+  #indics,#charts{padding:11px 14px;width:100%;min-width:0;flex:none}
+  #indics table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+  #indics td{padding:3px 0;vertical-align:top;overflow-wrap:anywhere}
+  #indics td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  #indics .sub{color:var(--muted);font-weight:400;font-size:10.5px;display:block}
+  .chart{margin:0 0 10px}
+  .chart .ct{font-size:11.5px;color:var(--muted);margin-bottom:5px}
+  .chart .bar{position:relative;display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px}
+  .chart .bar .bl{width:62px;flex:none;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chart .bar .track{position:relative;flex:1;height:9px;background:#eceae3;border-radius:2px;overflow:hidden}
+  .chart .bar .track i{position:absolute;left:0;top:0;bottom:0;border-radius:2px}
+  .chart .bar b{width:52px;flex:none;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+  #note{padding:9px 12px;max-width:100%;font-size:11.5px;color:var(--muted);flex:0 1 auto;min-height:0;overflow:auto}
+  #note b{color:var(--ink);font-weight:600}
+  #note .att{margin-top:7px;padding-top:6px;border-top:1px dashed var(--line)}
+  #note .att a{color:#2f5d8a;text-decoration:none;margin-right:10px}
+  #note .att a:hover{text-decoration:underline}
+  #legend{padding:9px 12px;font-size:11.5px;width:196px;flex:none}
+  #legend .north{float:right;color:var(--muted);font-size:11px}
+  #legend div{display:flex;align-items:center;gap:6px;margin:3px 0}
+  #scalebar{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--muted);text-align:center;z-index:790}
+  #scalebar i{display:block;height:7px;border:1px solid var(--muted);border-top:none;margin-bottom:2px}
+  .leaflet-popup-content{margin:10px 12px;font-size:12px}
+  .pop table{border-collapse:collapse}
+  .pop td{padding:2px 0}
+  .pop td:first-child{color:var(--muted);padding-right:12px;white-space:nowrap}
+  .pop .id{font-weight:600;font-size:13px;margin-bottom:4px}
+  .pop .src{margin-top:5px;color:var(--muted);font-size:10.5px}
+  .pop button{margin-top:7px;border:1px solid #c9c5b9;background:#fff;border-radius:4px;padding:2px 9px;cursor:pointer;font:12px inherit}
+  .pop button:hover{background:#f2efe8}
+  .leaflet-control-attribution{display:none}
+  #tools{top:14px;left:50%;transform:translateX(-50%);padding:6px 8px;display:flex;gap:4px;align-items:center}
+  #tools button{border:1px solid var(--line);background:#fff;border-radius:4px;padding:3px 9px;font:12px inherit;color:var(--ink);cursor:pointer}
+  #tools button:hover{background:#f2efe8}
+  #tools button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  #tools .sep{width:1px;height:18px;background:var(--line);margin:0 3px}
+  #hint{position:absolute;z-index:900;top:62px;left:50%;transform:translateX(-50%);font-size:11.5px;color:#fff;background:rgba(35,36,31,.78);padding:3px 10px;border-radius:12px;display:none}
+  .aLabel{position:relative;z-index:700;background:rgba(255,254,251,.94);border:1px solid #b03a2e;border-radius:3px;color:#8c2b22;font:11.5px "Microsoft YaHei",sans-serif;padding:1px 5px;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="leftTop">
+  <div id="title" class="card">
+    <h1 id="tName"></h1>
+    <p id="tSub"></p>
+  </div>
+  <div id="layers" class="card">
+    <h2>图层</h2>
+    <div id="lyList"></div>
+  </div>
+</div>
+
+<div id="tools" class="card">
+  <button data-tool="pan" class="on" title="平移/查看">查看</button>
+  <button data-tool="point" title="点击落点并写文字">点标注</button>
+  <button data-tool="rect" title="两次点击定矩形，自动算面积">矩形</button>
+  <button data-tool="poly" title="连续点击，双击结束，自动算面积">多边形</button>
+  <button data-tool="line" title="连续点击，双击结束，累计长度">测距</button>
+  <button data-tool="brush" title="按住拖动随手画">画笔</button>
+  <span class="sep"></span>
+  <button id="btnImport" title="导入本页导出的 GeoJSON">导入</button>
+  <button id="btnGeo" title="导出标注为 GeoJSON（工程坐标）">导出 JSON</button>
+  <button id="btnPng" title="导出当前视图为 PNG（含标注）">导出 PNG</button>
+  <button id="btnClear" title="清空全部标注">清空</button>
+</div>
+<div id="hint"></div>
+
+<div id="right">
+  <div id="indics" class="card">
+    <h2 id="indTitle">指标</h2>
+    <table><tbody id="indBody"></tbody></table>
+  </div>
+  <div id="charts" class="card" style="display:none">
+    <h2>数值图表</h2>
+    <div id="chartBody"></div>
+  </div>
+</div>
+
+<div id="leftBottom">
+  <div id="legend" class="card">
+    <span class="north">N ↑</span>
+  </div>
+  <div id="note" class="card"></div>
+</div>
+
+<div id="scalebar"><span id="scaleLabel">20 m</span><i id="scaleLine" style="width:80px"></i></div>
+<input type="file" id="fileIn" accept=".json,.geojson" style="display:none">
+
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="../project.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  function stop(err){
+    if (err && err.cardo) { window.CardoProject.showError(err); return; }
+    window.CardoProject.showError({ message: "页面初始化失败：" + ((err && (err.stack || err.message)) || String(err)), problems: [] });
+  }
+
+  function el(tag, cls, text){
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = text;
+    return n;
+  }
+
+  function fmtValue(v, digits){
+    if (v === undefined || v === null) return "";
+    if (Array.isArray(v)) return v.map(function(x){ return fmtValue(x, digits); }).join(" / ");
+    if (typeof v === "number" && digits !== undefined) return v.toFixed(digits);
+    return String(v);
+  }
+
+  /* 二维图层文件缺失：错误条逐条竖排（不再互相压住），同时把指标卡置为不可用，
+     避免出现"地图空白但指标卡照样显示数字"的静默错误 */
+  var indUnavailable = false;
+  function assetError(rel, why){
+    var host = document.getElementById("assetErr");
+    if (!host) {
+      host = el("div");
+      host.id = "assetErr";
+      host.setAttribute("style", "position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:99998;" +
+        "display:flex;flex-direction:column;gap:6px;max-width:min(720px,86vw);max-height:40vh;overflow:auto;");
+      document.body.appendChild(host);
+    }
+    var box = el("div");
+    box.setAttribute("style", "background:#7d1f1f;color:#fff;padding:8px 14px;border-radius:6px;font:12.5px/1.6 'Microsoft YaHei',sans-serif;");
+    box.textContent = "图层文件读取失败：" + rel + (why ? "（" + why + "）" : "") + "；请检查项目包内该文件是否存在。";
+    host.appendChild(box);
+    markIndicatorsUnavailable();
+  }
+
+  function markIndicatorsUnavailable(){
+    if (indUnavailable) return;
+    indUnavailable = true;
+    var t = document.getElementById("indTitle");
+    if (t) { t.textContent = "指标（二维数据缺失，不展示）"; t.style.color = "#a8322a"; }
+    var body = document.getElementById("indBody");
+    if (body) {
+      body.innerHTML = "";
+      var tr = el("tr"), td = el("td");
+      td.colSpan = 2;
+      td.setAttribute("style", "color:#a8322a;padding:6px 0;");
+      td.textContent = "二维图层文件缺失，指标数值不展示；补齐项目包后刷新本页。";
+      tr.appendChild(td); body.appendChild(tr);
+    }
+    var ch = document.getElementById("charts");
+    if (ch) ch.style.display = "none";
+  }
+
+  window.CardoProject.load().then(init).catch(stop);
+
+  function init(P){
+    var C = P.config, M = C.crs, ext = M.extentLocalM;
+    var E0 = M.origin.E, N0 = M.origin.N;
+    var b = [[ext[1], ext[0]], [ext[3], ext[2]]];
+    var crsText = C.crs.shortName || ("EPSG:" + M.epsg);
+
+    /* ---------- 标题 ---------- */
+    document.title = C.project.name + " · " + (C.project.subtitle || "二维图层浏览");
+    document.getElementById("tName").textContent = C.project.name + " · " + (C.project.subtitle || "二维图层浏览");
+    var sub = document.getElementById("tSub");
+    if (C.project.description) { sub.appendChild(document.createTextNode(C.project.description)); sub.appendChild(document.createElement("br")); }
+    sub.appendChild(document.createTextNode(crsText + " · 离线运行"));
+
+    /* ---------- 地图 ---------- */
+    var map = L.map("map", {
+      crs: L.CRS.Simple, minZoom: -1, maxZoom: 4, zoomSnap: 0.25,
+      zoomControl: false, attributionControl: false, maxBoundsViscosity: 0.6
+    }).fitBounds(b, {padding: [70, 70]});
+    var m = 90;
+    map.setMaxBounds([[ext[1] - m, ext[0] - m], [ext[3] + m, ext[2] + m]]);
+    L.control.zoom({position: "bottomright"}).addTo(map);
+
+    /* ---------- 图层 ---------- */
+    var on = {}, overlays = {}, vectors = {}, counts = {}, toggles = {}, opacitySliders = {};
+    var list = document.getElementById("lyList");
+
+    C.layers.forEach(function(ly, i){
+      on[i] = ly.default === true;
+      var label = el("label");
+      var cb = el("input");
+      cb.type = "checkbox"; cb.checked = on[i];
+      var sw = el("span", "swatch");
+      sw.style.background = ly.color || (ly.style && ly.style.color) || "#cfcabb";
+      var name = el("span", "", ly.name);
+      label.appendChild(cb); label.appendChild(sw); label.appendChild(name);
+      list.appendChild(label);
+      toggles[i] = cb;
+
+      if (ly.type === "raster-image") {
+        var ov = L.imageOverlay(P.resolve(ly.file), b, {opacity: ly.opacity === undefined ? 1 : ly.opacity});
+        ov.on("error", function(){ assetError(ly.file, "文件不存在或无法解码"); });
+        overlays[i] = ov;
+        apply(i);
+      }
+
+      cb.onchange = function(){
+        on[i] = cb.checked;
+        apply(i);
+        if (opacitySliders[i]) opacitySliders[i].wrap.style.display = on[i] ? "block" : "none";
+      };
+
+      if (ly.opacityControl) {
+        var wrap = el("div", "opacity");
+        var cap = el("span", "", ly.name + " 不透明度 ");
+        var val = el("b", "", Math.round((ly.opacity === undefined ? 1 : ly.opacity) * 100) + "%");
+        cap.appendChild(val);
+        var range = el("input");
+        range.type = "range"; range.min = "0"; range.max = "100";
+        range.value = String(Math.round((ly.opacity === undefined ? 1 : ly.opacity) * 100));
+        range.oninput = function(){
+          val.textContent = range.value + "%";
+          if (overlays[i]) overlays[i].setOpacity(+range.value / 100);
+        };
+        wrap.appendChild(cap); wrap.appendChild(range);
+        wrap.style.display = on[i] ? "block" : "none";
+        list.appendChild(wrap);
+        opacitySliders[i] = { wrap: wrap, range: range };
+      }
+    });
+
+    function apply(i){
+      var ly = C.layers[i];
+      if (ly.type === "raster-image") {
+        if (!overlays[i]) return;
+        if (on[i]) overlays[i].addTo(map); else map.removeLayer(overlays[i]);
+      } else {
+        if (!vectors[i]) return;
+        if (on[i]) vectors[i].addTo(map); else map.removeLayer(vectors[i]);
+      }
+    }
+
+    function styleOf(ly){
+      var s = ly.style || {};
+      return {
+        color: s.color || "#b03a2e",
+        weight: s.weight === undefined ? 1.2 : s.weight,
+        opacity: s.opacity === undefined ? 0.95 : s.opacity,
+        fill: s.fill === true,
+        fillColor: s.fillColor || s.color || "#b03a2e",
+        fillOpacity: s.fillOpacity === undefined ? 0.25 : s.fillOpacity
+      };
+    }
+
+    function popupHtml(feature, ly){
+      var p = feature.properties || {};
+      var pop = ly.popup || {};
+      var title = p[pop.titleKey || "id"];
+      var html = '<div class="pop"><div class="id">' + (title === undefined ? "" : title) + "</div><table>";
+      (pop.fields || []).forEach(function(f){
+        var v = p[f.key];
+        if (v === undefined || v === null) return;
+        html += "<tr><td>" + f.label + "</td><td>" + fmtValue(v, f.digits) + (f.unit ? " " + f.unit : "") + "</td></tr>";
+      });
+      html += "</table>";
+      if (pop.source) html += '<div class="src">' + pop.source + "</div>";
+      return html + "</div>";
+    }
+
+    function addVectorLayer(i, ly, gj){
+      var feats = (gj.features || []).filter(function(f){
+        if (!ly.filter) return true;
+        var p = f.properties || {};
+        return Object.keys(ly.filter).every(function(k){ return p[k] === ly.filter[k]; });
+      });
+      counts[i] = feats.length;
+      var lyr = L.geoJSON({type: "FeatureCollection", features: feats}, {
+        style: function(){ return styleOf(ly); },
+        onEachFeature: function(f, l){
+          var p = f.properties || {};
+          var lab = p[ly.labelKey || "id"];
+          if (lab !== undefined) l.bindTooltip(String(lab), {sticky: true, direction: "top", opacity: 0.85});
+          if (ly.popup) l.bindPopup(popupHtml(f, ly), {maxWidth: 300});
+        }
+      });
+      vectors[i] = lyr;
+      apply(i);
+    }
+
+    var loads = C.layers.map(function(ly, i){
+      if (ly.type !== "vector-polygon") return Promise.resolve();
+      return fetch(P.resolve(ly.file), {cache: "no-store"}).then(function(r){
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      }).then(function(gj){
+        addVectorLayer(i, ly, gj);
+        var nameNode = toggles[i].parentNode.querySelector("span:last-child");
+        nameNode.textContent = ly.name + "（" + counts[i] + "）";
+      }).catch(function(e){
+        assetError(ly.file, e.message);
+      });
+    });
+
+    /* ---------- 指标卡 ---------- */
+    var tbody = document.getElementById("indBody");
+    if (!indUnavailable) {
+      document.getElementById("indTitle").textContent = C.indicators.title;
+      C.indicators.items.forEach(function(it){
+        var tr = el("tr");
+        var td1 = el("td");
+        td1.appendChild(document.createTextNode(it.label));
+        if (it.note) { var s = el("span", "sub", it.note); td1.appendChild(s); }
+        var td2 = el("td", "", it.value + (it.unit ? " " + it.unit : ""));
+        tr.appendChild(td1); tr.appendChild(td2);
+        tbody.appendChild(tr);
+      });
+    }
+
+    /* ---------- 图表 ---------- */
+    if (!indUnavailable && C.charts && C.charts.length) {
+      document.getElementById("charts").style.display = "block";
+      var cb = document.getElementById("chartBody");
+      C.charts.forEach(function(ch){
+        var wrap = el("div", "chart");
+        wrap.appendChild(el("div", "ct", ch.title));
+        var max = 0;
+        ch.series.forEach(function(s){ max = Math.max(max, Math.abs(s.value)); });
+        ch.series.forEach(function(s){
+          var bar = el("div", "bar");
+          bar.appendChild(el("span", "bl", s.label));
+          var track = el("div", "track");
+          var fill = el("i");
+          fill.style.width = (max > 0 ? Math.max(0, Math.abs(s.value) / max * 100) : 0).toFixed(1) + "%";
+          fill.style.background = s.color || "#5aa46a";
+          track.appendChild(fill);
+          bar.appendChild(track);
+          bar.appendChild(el("b", "", fmtValue(s.value) + (ch.unit ? ch.unit : "")));
+          wrap.appendChild(bar);
+        });
+        cb.appendChild(wrap);
+      });
+    }
+
+    /* ---------- 说明与图例 ---------- */
+    var note = document.getElementById("note");
+    C.text.overview.forEach(function(seg, i){
+      if (i) note.appendChild(document.createElement("br"));
+      var btag = el("b", "", seg.title);
+      note.appendChild(btag);
+      note.appendChild(document.createTextNode("：" + seg.body));
+    });
+    if (C.text.footer) {
+      note.appendChild(document.createElement("br"));
+      note.appendChild(document.createTextNode(C.text.footer));
+    }
+    if (C.attachments && C.attachments.length) {
+      var att = el("div", "att");
+      att.appendChild(document.createTextNode("附件："));
+      C.attachments.forEach(function(a){
+        var link = el("a", "", a.label);
+        link.href = P.resolve(a.href);
+        link.target = "_blank";
+        att.appendChild(link);
+      });
+      note.appendChild(att);
+    }
+
+    var legend = document.getElementById("legend");
+    C.layers.forEach(function(ly){
+      (ly.legend || []).forEach(function(g){
+        var row = el("div");
+        var sw = el("span", "swatch");
+        sw.style.background = g.color;
+        row.appendChild(sw);
+        row.appendChild(document.createTextNode(g.label));
+        legend.appendChild(row);
+      });
+    });
+    if (legend.children.length <= 1) legend.style.display = "none";
+
+    /* ---------------- 标注 ---------------- */
+    var KEY = "cardo-anno-v1:" + String(C.project.id);
+    var annos = [], seq = 0;
+    var annoLayer = L.layerGroup().addTo(map);
+    var draftLayer = L.layerGroup().addTo(map);
+    var tool = "pan", draft = [];
+
+    try { annos = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch(e){ annos = []; }
+    annos.forEach(function(a){ seq = Math.max(seq, a.id || 0); });
+
+    function ll(p){ return L.latLng(p[1], p[0]); }
+    function area(pts){
+      var s = 0;
+      for (var i = 0; i < pts.length; i++){
+        var a = pts[i], c = pts[(i+1) % pts.length];
+        s += a[0]*c[1] - c[0]*a[1];
+      }
+      return Math.abs(s) / 2;
+    }
+    function length(pts){
+      var s = 0;
+      for (var i = 1; i < pts.length; i++){
+        s += Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]);
+      }
+      return s;
+    }
+    function save(){
+      try { localStorage.setItem(KEY, JSON.stringify(annos)); } catch(e){}
+    }
+    function info(a){
+      if (a.type === "point") return "点标注";
+      if (a.type === "rect" || a.type === "poly") return "面积 " + a.area.toFixed(1) + " ㎡";
+      return "长度 " + a.length.toFixed(2) + " m";
+    }
+    function del(id){
+      annos = annos.filter(function(x){ return x.id !== id; });
+      save(); draw();
+    }
+    window.__delAnno = del;
+
+    function draw(){
+      annoLayer.clearLayers();
+      annos.forEach(function(a){
+        var lyr;
+        if (a.type === "point"){
+          lyr = L.marker(ll(a.pts[0]), {icon: L.divIcon({
+            className: "", html: '<div class="aLabel">' + (a.label || "标注") + "</div>",
+            iconSize: null, iconAnchor: [6, 6]})});
+        } else if (a.type === "rect" || a.type === "poly"){
+          lyr = L.polygon(a.pts.map(ll), {color: "#b03a2e", weight: 2, fillColor: "#e08a5a", fillOpacity: 0.18});
+        } else {
+          lyr = L.polyline(a.pts.map(ll), {color: "#c0392b", weight: 2.4, opacity: 0.95});
+        }
+        lyr.bindPopup('<div class="pop"><div class="id">' + (a.label || info(a)) + "</div>" +
+          "<table><tr><td>类型</td><td>" + a.type + "</td></tr>" +
+          "<tr><td>量测</td><td>" + info(a) + "</td></tr></table>" +
+          '<button onclick="__delAnno(' + a.id + ')">删除</button></div>');
+        lyr.addTo(annoLayer);
+      });
+    }
+
+    function redrawDraft(){
+      draftLayer.clearLayers();
+      if (!draft.length) return;
+      if (tool === "rect" && draft.length === 1){
+        L.circleMarker(ll(draft[0]), {radius: 4, color: "#b03a2e"}).addTo(draftLayer);
+        return;
+      }
+      if (tool === "rect"){
+        var p = draft[0], q = draft[1];
+        L.rectangle([[Math.min(p[1],q[1]), Math.min(p[0],q[0])],[Math.max(p[1],q[1]), Math.max(p[0],q[0])]],
+          {color: "#b03a2e", dashArray: "4 3", weight: 1.6}).addTo(draftLayer);
+        return;
+      }
+      if (tool === "brush"){
+        L.polyline(draft.map(ll), {color: "#c0392b", weight: 2.4}).addTo(draftLayer);
+        return;
+      }
+      if (draft.length > 1){
+        L.polyline(draft.map(ll), {color: "#b03a2e", dashArray: "4 3", weight: 1.6}).addTo(draftLayer);
+      }
+    }
+
+    function push(kind, pts, label){
+      var a = {id: ++seq, type: kind, pts: pts, label: label || ""};
+      if (kind === "rect" || kind === "poly") a.area = area(pts);
+      if (kind === "line" || kind === "brush") a.length = length(pts);
+      annos.push(a); save(); draw();
+    }
+
+    var hints = {pan: "", point: "点击落点，输入文字", rect: "点击第一个角点，再点对角", poly: "连续点击描边，双击结束",
+                 line: "连续点击测距，双击结束", brush: "按住鼠标拖动绘制"};
+    function setTool(t){
+      tool = t; draft = []; draftLayer.clearLayers();
+      if (t === "poly" || t === "line") map.doubleClickZoom.disable(); else map.doubleClickZoom.enable();
+      var btns = document.querySelectorAll("#tools button[data-tool]");
+      for (var i = 0; i < btns.length; i++) btns[i].className = (btns[i].getAttribute("data-tool") === t) ? "on" : "";
+      document.getElementById("map").style.cursor = (t === "pan" ? "" : "crosshair");
+      var h = document.getElementById("hint");
+      h.textContent = hints[t] || ""; h.style.display = hints[t] ? "block" : "none";
+    }
+    var btns = document.querySelectorAll("#tools button[data-tool]");
+    for (var i = 0; i < btns.length; i++){
+      btns[i].onclick = function(){ setTool(this.getAttribute("data-tool")); };
+    }
+
+    map.on("click", function(e){
+      if (tool === "pan") return;
+      var p = [e.latlng.lng, e.latlng.lat];
+      if (tool === "point"){
+        var t = window.prompt("标注文字", "");
+        if (t === null) return;
+        push("point", [p], t || "标注");
+        return;
+      }
+      if (tool === "rect"){
+        draft.push(p);
+        if (draft.length === 2){
+          var x0 = Math.min(draft[0][0], draft[1][0]), x1 = Math.max(draft[0][0], draft[1][0]);
+          var y0 = Math.min(draft[0][1], draft[1][1]), y1 = Math.max(draft[0][1], draft[1][1]);
+          push("rect", [[x0,y0],[x1,y0],[x1,y1],[x0,y1]], "矩形");
+          draft = []; draftLayer.clearLayers();
+        } else {
+          redrawDraft();
+        }
+        return;
+      }
+      draft.push(p); redrawDraft();
+    });
+
+    map.on("dblclick", function(){
+      if (tool !== "poly" && tool !== "line") return;
+      if (draft.length < 2) return;
+      var pts = draft.slice();
+      if (tool === "poly"){
+        if (pts.length < 3){ draft = []; draftLayer.clearLayers(); return; }
+        push("poly", pts, "多边形");
+      } else {
+        push("line", pts, "测距");
+      }
+      draft = []; draftLayer.clearLayers();
+    });
+
+    var brushing = false;
+    map.on("mousedown", function(e){
+      if (tool !== "brush") return;
+      brushing = true; draft = [[e.latlng.lng, e.latlng.lat]]; redrawDraft();
+      map.dragging.disable();
+    });
+    map.on("mousemove", function(e){
+      if (!brushing) return;
+      var p = [e.latlng.lng, e.latlng.lat], last = draft[draft.length-1];
+      if (Math.hypot(p[0]-last[0], p[1]-last[1]) >= 0.12) { draft.push(p); redrawDraft(); }
+    });
+    map.on("mouseup", function(){
+      if (!brushing) return;
+      brushing = false; map.dragging.enable();
+      if (draft.length > 1) push("brush", draft.slice(), "画笔");
+      draft = []; draftLayer.clearLayers();
+    });
+
+    /* ---------------- 导入 / 导出 ---------------- */
+    function toE(p){ return [ +(E0 + p[0]).toFixed(3), +(N0 + p[1]).toFixed(3) ]; }
+
+    document.getElementById("btnGeo").onclick = function(){
+      var feats = annos.map(function(a){
+        var geom;
+        if (a.type === "point") geom = {type: "Point", coordinates: toE(a.pts[0])};
+        else if (a.type === "line" || a.type === "brush") geom = {type: "LineString", coordinates: a.pts.map(toE)};
+        else geom = {type: "Polygon", coordinates: [a.pts.map(toE).concat([toE(a.pts[0])])]};
+        return {type: "Feature", geometry: geom, properties: {
+          cardo: true, annoType: a.type, label: a.label || "",
+          areaM2: a.area ? +a.area.toFixed(2) : undefined,
+          lengthM: a.length ? +a.length.toFixed(2) : undefined,
+          epsg: M.epsg, crs: M.name}};
+      });
+      var gj = {type: "FeatureCollection", schema: "cardo/gis-annotations/v1",
+        crs: {type: "name", properties: {name: "urn:ogc:def:crs:EPSG::" + M.epsg}},
+        features: feats};
+      download("标注.geojson", JSON.stringify(gj, null, 1), "application/geo+json");
+    };
+
+    function download(name, text, mime){
+      var blob = new Blob([text], {type: mime + ";charset=utf-8"});
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 800);
+    }
+
+    document.getElementById("fileIn").onchange = function(e){
+      var f = e.target.files[0]; if (!f) return;
+      var rd = new FileReader();
+      rd.onload = function(){
+        try {
+          var gj = JSON.parse(rd.result), got = [];
+          (gj.features || []).forEach(function(ft){
+            var g = ft.geometry, p = ft.properties || {};
+            var pts = g.type === "Point" ? [[g.coordinates[0]-E0, g.coordinates[1]-N0]]
+              : g.type === "LineString" ? g.coordinates.map(function(c){ return [c[0]-E0, c[1]-N0]; })
+              : g.coordinates[0].slice(0, -1).map(function(c){ return [c[0]-E0, c[1]-N0]; });
+            got.push({id: ++seq, type: p.annoType || (g.type === "Point" ? "point" : g.type === "LineString" ? "line" : "poly"),
+                      pts: pts, label: p.label || "",
+                      area: p.areaM2 !== undefined ? p.areaM2 : ((g.type === "Polygon") ? area(pts) : undefined),
+                      length: p.lengthM !== undefined ? p.lengthM : ((g.type === "LineString") ? length(pts) : undefined)});
+          });
+          if (!got.length) { alert("未读到可导入的标注要素"); return; }
+          annos = annos.concat(got); save(); draw();
+          alert("已导入 " + got.length + " 条标注");
+        } catch(err){ alert("导入失败：" + err.message); }
+        e.target.value = "";
+      };
+      rd.readAsText(f, "utf-8");
+    };
+
+    document.getElementById("btnClear").onclick = function(){
+      if (!annos.length) return;
+      if (!window.confirm("清空全部 " + annos.length + " 条标注？")) return;
+      annos = []; save(); draw();
+    };
+
+    document.getElementById("btnPng").onclick = function(){
+      var size = map.getSize(), s = 2;
+      var cv = document.createElement("canvas");
+      cv.width = size.x * s; cv.height = size.y * s;
+      var ctx = cv.getContext("2d");
+      ctx.scale(s, s);
+      ctx.fillStyle = "#24241f"; ctx.fillRect(0, 0, size.x, size.y);
+      var p1 = map.latLngToContainerPoint(b[0]), p2 = map.latLngToContainerPoint(b[1]);
+      var w = p2.x - p1.x, h = p2.y - p1.y;
+
+      C.layers.forEach(function(ly, i){
+        if (!on[i]) return;
+        if (ly.type === "raster-image" && overlays[i]){
+          var img = overlays[i].getElement();
+          if (img && img.complete && img.naturalWidth){
+            ctx.globalAlpha = overlays[i].options.opacity === undefined ? 1 : overlays[i].options.opacity;
+            ctx.drawImage(img, p1.x, p1.y, w, h);
+            ctx.globalAlpha = 1;
+          }
+        }
+      });
+
+      function path(pts, style){
+        ctx.beginPath();
+        pts.forEach(function(p, i){
+          var q = map.latLngToContainerPoint([p[1], p[0]]);
+          i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y);
+        });
+        ctx.closePath();
+        ctx.strokeStyle = style.color; ctx.lineWidth = style.width; ctx.stroke();
+        if (style.fill){ ctx.fillStyle = style.fill; ctx.globalAlpha = style.alpha || 0.3; ctx.fill(); ctx.globalAlpha = 1; }
+      }
+
+      C.layers.forEach(function(ly, i){
+        if (!on[i] || ly.type !== "vector-polygon" || !vectors[i]) return;
+        var st = styleOf(ly);
+        vectors[i].eachLayer(function(l){
+          var gj = l.feature;
+          if (!gj || !gj.geometry) return;
+          var rings = gj.geometry.type === "Polygon" ? [gj.geometry.coordinates[0]] : [gj.geometry.coordinates[0][0]];
+          rings.forEach(function(ring){
+            path(ring, {color: st.color, width: st.weight, fill: st.fill ? st.fillColor : null, alpha: st.fillOpacity});
+          });
+        });
+      });
+
+      annos.forEach(function(a){
+        if (a.type === "point"){
+          var q = map.latLngToContainerPoint(ll(a.pts[0]));
+          ctx.beginPath(); ctx.arc(q.x, q.y, 3.5, 0, 6.284); ctx.fillStyle = "#b03a2e"; ctx.fill();
+          ctx.font = '12px "Microsoft YaHei"'; ctx.fillStyle = "#fff";
+          ctx.strokeStyle = "rgba(35,36,31,.85)"; ctx.lineWidth = 3;
+          ctx.strokeText(a.label || "标注", q.x + 6, q.y + 4);
+          ctx.fillText(a.label || "标注", q.x + 6, q.y + 4);
+        } else if (a.type === "rect" || a.type === "poly"){
+          path(a.pts, {color: "#b03a2e", width: 2, fill: "#e08a5a", alpha: 0.18});
+          var c = a.pts.reduce(function(m, p){ return [m[0]+p[0]/a.pts.length, m[1]+p[1]/a.pts.length]; }, [0,0]);
+          var q2 = map.latLngToContainerPoint([c[1], c[0]]);
+          ctx.font = '12px "Microsoft YaHei"'; ctx.fillStyle = "#fff";
+          ctx.strokeStyle = "rgba(35,36,31,.85)"; ctx.lineWidth = 3;
+          var lab = a.area.toFixed(1) + " ㎡";
+          ctx.strokeText(lab, q2.x - 18, q2.y + 4); ctx.fillText(lab, q2.x - 18, q2.y + 4);
+        } else {
+          ctx.beginPath();
+          a.pts.forEach(function(p, i){
+            var q = map.latLngToContainerPoint([p[1], p[0]]);
+            i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y);
+          });
+          ctx.strokeStyle = "#c0392b"; ctx.lineWidth = 2.4; ctx.stroke();
+          if (a.length){
+            var mm = map.latLngToContainerPoint([a.pts[a.pts.length-1][1], a.pts[a.pts.length-1][0]]);
+            ctx.font = '12px "Microsoft YaHei"'; ctx.fillStyle = "#fff";
+            ctx.strokeStyle = "rgba(35,36,31,.85)"; ctx.lineWidth = 3;
+            var lb = a.length.toFixed(2) + " m";
+            ctx.strokeText(lb, mm.x + 6, mm.y - 6); ctx.fillText(lb, mm.x + 6, mm.y - 6);
+          }
+        }
+      });
+      var a2 = document.createElement("a");
+      a2.href = cv.toDataURL("image/png"); a2.download = "二维视图_含标注.png";
+      document.body.appendChild(a2); a2.click(); a2.remove();
+    };
+
+    /* ---------------- 比例尺 ---------------- */
+    function updateScale(){
+      var target = 40, pz = Math.pow(2, map.getZoom());
+      var cands = [5,10,20,50,100], mm = cands[0];
+      for (var i = 0; i < cands.length; i++){ if (cands[i]*pz <= target*1.6) mm = cands[i]; }
+      document.getElementById("scaleLabel").textContent = mm + " m";
+      document.getElementById("scaleLine").style.width = Math.round(mm * pz) + "px";
+    }
+    map.on("zoomend", updateScale); updateScale();
+
+    Promise.all(loads).then(function(){ draw(); });
+  }
+})();
+</script>
+</body>
+</html>

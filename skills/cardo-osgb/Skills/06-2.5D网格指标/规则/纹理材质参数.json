@@ -1,0 +1,142 @@
+{
+  "schema": "cardo/texture-material-params/v1",
+  "schemaVersion": 1,
+  "methodVersion": "texture-p0-v2",
+  "status": "P0",
+  "purpose": "模型自身不含绿化/道路语义图层时，用 b3dm 内嵌纹理做材质识别，产出带区间与置信度的绿化率、道路占比代理值。",
+  "input": {
+    "container": "b3dm → GLB",
+    "attributes": ["POSITION", "NORMAL", "TEXCOORD_0"],
+    "texture": "材质漫反射贴图（KHR_techniques_webgl.u_diffuse 优先，其次 pbrMetallicRoughness.baseColorTexture）",
+    "note": "不解析 OSGB 字节；不依赖外部影像、权重或在线服务。"
+  },
+  "sampling": {
+    "surface": "朝上三角面重心（几何法线 nz ≥ 0.5）",
+    "uvConvention": "UV 取重心后按 mod 1 取贴图；与 05-模型体检 的纹理诊断同口径（不额外翻转 V）",
+    "textureDecodeMaxPx": 256,
+    "gridCellM": 1.0,
+    "sensitivityCellM": [0.5, 1.0, 2.0],
+    "normalZ": 0.5,
+    "greenPatchCleanup": false,
+    "greenPatchCleanupNote": "P0 不做闭运算/连通域清洗：像素级判定避免用形态学操作人为放大绿化斑块；05 的 128 px + 清洗结果仅作诊断对照。"
+  },
+  "vegetation": {
+    "indices": {
+      "ExG": "2g - r - b",
+      "VARI": "(g - r) / (g + r - b + eps)",
+      "GLI": "(2g - r - b) / (2g + r + b + eps)",
+      "rgbScale": "[0,1]；eps = 1e-6"
+    },
+    "classification": "ExG ≥ exgThreshold 且 HSV 满足绿相/饱和/亮度约束",
+    "exgThresholdMode": "otsu_with_clamp",
+    "exgThresholdClamp": [0.03, 0.15],
+    "exgThresholdFallback": 0.05,
+    "exgSensitivityFactors": [0.7, 1.0, 1.3],
+    "hsv": {
+      "engine": "Pillow Image.convert('HSV')",
+      "scale": "0-255（Pillow 标度，非角度）",
+      "hueRange": [40, 130],
+      "hueRangeDegApprox": [56, 184],
+      "saturationMin": 50,
+      "valueMin": 30
+    },
+    "darkVegetation": {
+      "enabled": true,
+      "description": "低饱和/暗部树冠：V<120 时饱和度下降，主分支 S≥50 会漏判；改用 S≥15 + ExG≥0.02 补判",
+      "valMax": 120,
+      "saturationMin": 15,
+      "hueRange": [45, 85],
+      "exgMin": 0.02,
+      "basis": "调研报告 §3.3 风险②：阴影下的草地/树冠会因饱和度下降被判成灰色；ExG 在暗部仍为正，故用低饱和+低 ExG 阈值补判。色相收窄到 45–85（Pillow 0–255，约 63°–120°）避开青蓝水体；阈值作为工程基线随参数表交付，不随项目改。"
+    },
+    "canopy": {
+      "enabled": true,
+      "description": "亮部低饱和冠芯：树冠核心常是灰绿（S<50）但 V 不低，旧规则只抓到冠缘；用 S≥10 + ExG≥0.5×阈值 补判",
+      "valMin": 40,
+      "saturationMin": 10,
+      "hueRange": [40, 95],
+      "exgRatioOfThreshold": 0.5,
+      "basis": "针对首轮真值校核中树冠核心 greenShare≈0.52 被漏判的问题；冠芯灰绿与道路灰的区分靠 ExG（冠芯 ExG 仍为正，道路 ExG 远低于阈值），因此不再要求 S≥50。色相收窄到 40–95（Pillow 0–255）避开青蓝水体；0.5 倍阈值用于保证敏感性三档同步缩放。"
+    },
+    "greenFill": {
+      "enabled": true,
+      "description": "格级多数票补洞：非绿格若 8 邻域中 ≥5 个是绿，按 0.5 下限软填充（只补内部空洞，不向外扩张）",
+      "minNeighbors": 5,
+      "basis": "形态学闭运算/众数滤波的离散近似（Serra 1982；Soille 2003），用于填补树冠内部因阴影/高光造成的小空洞；填充值取 0.5 而非 1.0，避免把边界格抬成纯绿。"
+    },
+    "sources": [
+      {
+        "item": "ExG / VARI / GLI 定义",
+        "ref": "Woebbecke et al. 1995 (ExG); Meyer & Neto 2008 (ExG/VARI/GLI); OTB RadiometricIndices（Apache-2.0）"
+      },
+      {
+        "item": "ExG 用于植被覆盖度估算的精度量级（平均 85.66%，72.54%–99.53%）",
+        "ref": "International Journal of Remote Sensing, 2019, DOI:10.1080/01431161.2018.1528017"
+      },
+      {
+        "item": "VARI 用于草坪覆盖率估算（R²=0.87，RMSE 8.29）",
+        "ref": "Frontiers in Plant Science, 2019"
+      },
+      {
+        "item": "HSV 绿相/饱和/亮度阈值",
+        "ref": "包内既有 05-模型体检 纹理诊断口径（Skills/05-模型体检/scripts/inspect_model.py › texture_cell_color）"
+      },
+      {
+        "item": "Otsu 阈值法",
+        "ref": "Otsu 1979, IEEE Trans. SMC；公开方法，无许可限制"
+      }
+    ]
+  },
+  "road": {
+    "classification": "非绿样本 且 低饱和灰度 且 近地面 且 不在建筑掩膜内",
+    "saturationMax": 40,
+    "saturationSensitivity": [35, 40, 45],
+    "valueRange": [35, 215],
+    "exgRatioMaxOfThreshold": 0.35,
+    "heightAboveGroundMaxM": 0.8,
+    "heightSensitivityM": [0.45, 0.8, 1.3],
+    "heightRelaxNote": "首轮 0.35 m 把坡道、林间步道、下沉路面排掉了；建筑屋面已由建筑掩膜整体排除，放宽到 0.8 m 不会把屋顶算进道路。敏感性保留 0.45/0.8/1.3 三档。",
+    "sources": [
+      {
+        "item": "低饱和灰度道路像素规则",
+        "ref": "包内 05 纹理诊断 gray_mask（sat<40、35≤V≤215）+ 06 2.5D 高度约束；工程基线，非学习模型"
+      },
+      {
+        "item": "道路应为近地面硬质面",
+        "ref": "06 网格地面 P10 与建筑掩膜（Skills/06-2.5D网格指标/scripts/run_indicators.py）"
+      }
+    ]
+  },
+  "buildingMask": {
+    "definition": "格 max_z − 15 m 邻域地面 P10 > 3.0 m",
+    "use": "道路识别时排除建筑屋面/立面；绿化率分母不扣屋面（按用户拍板口径）",
+    "source": "06 既有 2.5D 建筑掩膜口径"
+  },
+  "denominator": {
+    "greenery": "模型覆盖范围内全部朝上表面三角面（含建筑屋面），按三角面面积加权；空洞/无纹理面不计",
+    "road": "同绿化率分母；道路分子仅计非建筑掩膜、近地面三角面（面积加权）",
+    "note": "分母口径写死在《指标口径.md》第 1 节；不得改成“扣掉屋顶”的分母。面积权重 = 三角面 3D 面积（0.5×叉积模），替代表面样本计数，缓解混合像元。"
+  },
+  "confidence": {
+    "levels": ["low", "medium"],
+    "medium": "有纹理观测格占模型覆盖格 ≥ 60%，且每格样本数中位 ≥ 8",
+    "low": "其余情况",
+    "note": "P0 不声称 high；真值校核结论见《纹理材质识别.md》第 6 节。"
+  },
+  "legal": {
+    "used": [
+      "可见光植被指数 ExG / VARI / GLI（公开方法）",
+      "Pillow HSV 颜色阈值（自研规则）",
+      "UV 纹理采样（自研实现）",
+      "2.5D 建筑掩膜（包内几何方法）",
+      "numpy（BSD-3-Clause）、Pillow（HPND）、scikit-image（BSD-3-Clause，可选）"
+    ],
+    "excluded": [
+      "RandLA-Net（CC BY-NC-SA 4.0，禁商用）",
+      "SegFormer 官方权重（NVIDIA 非商用许可）",
+      "LoveDA / OpenEarthMap（CC BY-NC-SA 4.0）",
+      "OpenDroneMap（AGPL-3.0）"
+    ],
+    "rule": "P0 交付链路不引入任何受限许可算法或权重；若后续 P1 引入正射深度学习，须在包内单独标记许可、权重来源与商用限制。"
+  }
+}

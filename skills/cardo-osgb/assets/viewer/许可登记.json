@@ -1,0 +1,50 @@
+{
+  "schema": "cardo/license-registry/v1",
+  "package": "模型浏览引擎",
+  "components": [
+    {
+      "name": "CesiumJS",
+      "version": "1.147.0",
+      "license": "Apache-2.0",
+      "commercial": true,
+      "redistribute": true,
+      "conclusion": "可商用可分发",
+      "path": "viewer/vendor/cesium",
+      "licenseFile": "viewer/vendor/cesium/LICENSE-cesium.txt"
+    },
+    {
+      "name": "Leaflet",
+      "version": "1.9.4",
+      "license": "BSD-2-Clause",
+      "commercial": true,
+      "redistribute": true,
+      "conclusion": "可商用可分发",
+      "path": "viewer/vendor/leaflet",
+      "licenseFile": "viewer/vendor/leaflet/LICENSE-leaflet.txt"
+    },
+    {
+      "name": "caddy",
+      "version": "2.10.0",
+      "license": "Apache-2.0",
+      "commercial": true,
+      "redistribute": true,
+      "conclusion": "可商用可分发",
+      "path": "tool",
+      "licenseFile": "tool/LICENSE-caddy.txt"
+    },
+    {
+      "name": "Python",
+      "version": "目标机自带 3.9+（仅兜底）",
+      "license": "PSF-2.0",
+      "commercial": true,
+      "redistribute": false,
+      "conclusion": "未打包（首选包内 caddy；无 caddy 时才要求本机 Python）",
+      "path": "—",
+      "licenseFile": "—"
+    }
+  ],
+  "notIncluded": [
+    "Cesium ion / 任何在线影像与地形服务（未接）",
+    "任何在线地图 key、CDN 字体、统计脚本"
+  ]
+}

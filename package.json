@@ -1,0 +1,39 @@
+{
+  "name": "cardo-osgb",
+  "version": "0.1.0",
+  "description": "Cardo 低空解析流水线：OSGB 转 3D Tiles、模型体检与现状指标。",
+  "type": "module",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "skills",
+    "README.md",
+    "assets",
+    "requirements.txt",
+    "LICENSE",
+    "NOTICE",
+    "docs",
+    "THIRD_PARTY_LICENSES.md"
+  ],
+  "engines": {
+    "node": ">=24.9.0",
+    "dsh": ">=0.2.2-rc.5 <0.3.0"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml",
+      "platforms": [
+        "win32"
+      ]
+    }
+  },
+  "keywords": [
+    "cardo",
+    "dsh",
+    "dsh-plugin",
+    "skill"
+  ],
+  "license": "AGPL-3.0-or-later"
+}

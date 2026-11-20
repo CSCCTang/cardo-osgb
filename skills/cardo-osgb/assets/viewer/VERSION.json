@@ -1,0 +1,31 @@
+{
+  "schema": "cardo/viewer-asset/v1",
+  "name": "模型浏览引擎",
+  "version": "1.0.0",
+  "snapshotDate": "2026-11-14",
+  "source": "CardoViewer 项目包查看器（viewer/ + scripts/ + tool/ 快照）",
+  "components": [
+    {
+      "name": "CesiumJS",
+      "version": "1.147.0",
+      "license": "Apache-2.0",
+      "path": "viewer/vendor/cesium",
+      "licenseFile": "viewer/vendor/cesium/LICENSE-cesium.txt"
+    },
+    {
+      "name": "Leaflet",
+      "version": "1.9.4",
+      "license": "BSD-2-Clause",
+      "path": "viewer/vendor/leaflet",
+      "licenseFile": "viewer/vendor/leaflet/LICENSE-leaflet.txt"
+    },
+    {
+      "name": "caddy",
+      "version": "2.10.0",
+      "license": "Apache-2.0",
+      "path": "tool",
+      "licenseFile": "tool/LICENSE-caddy.txt"
+    }
+  ],
+  "note": "本目录为构建期资产，输出件内的同名目录是运行时快照，不手改；需要变更时改资产后重新导出。"
+}

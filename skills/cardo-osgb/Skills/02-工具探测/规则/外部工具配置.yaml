@@ -1,0 +1,54 @@
+﻿# 外部工具登记表（02-工具探测）
+# 口径：工具随技能走（Skills/02-工具探测/tools/），本表是唯一可信清单。
+# 改工具 = 改本表 + 升版本 + 全链回归；不得静默换版本。
+schema: cardo/lowair-tools-config/v1
+updatedAt: 2026-10-25
+probeOrder:
+  - --tools-dir
+  - Skills/02-工具探测/tools
+  - env:CARDO_OSGB_TOOLS
+tools:
+  - name: 3dtile
+    role: converter
+    version: v0.4
+    upstream: fanvanzh/3dtiles
+    source: https://github.com/fanvanzh/3dtiles
+    sourceUrl: https://github.com/fanvanzh/3dtiles
+    acquiredAt: 2026-10-25
+    license: Apache-2.0
+    licenseFile: licenses/fanvanzh-3dtiles-LICENSE.txt
+    licenseNote: 主包 Apache-2.0；包内 OSG/GDAL/PROJ 未附 LICENSE，仅内部使用
+    distribution: internal-only
+    executable: fanvanzh-3dtiles/v0.4/3dtile.exe
+    sha256: C7F5C7EED5165B2ECACBB25D0B459C33C20304245897B793D09141715BB379DC
+    manifest:
+      files: 178
+      sha256: 583F54FC2F56838F981133BB9BCE03DF2706501DE09F5C2015C7F709959F162F
+    invocation:
+      cwd: exeDir
+      timeoutSec: 600
+      expectExit: 0
+      args:
+        - -f
+        - osgb
+        - -i
+        - <in>
+        - -o
+        - <out>
+    onMissing: TOOL_MISSING
+    onMissingExit: 2
+    onMismatch: TOOL_VERSION_MISMATCH
+    onMismatchExit: 3
+  - name: 3d-tiles-tools
+    role: validator
+    version: 0.5.4
+    upstream: CesiumGS/3d-tiles-tools
+    source: https://github.com/CesiumGS/3d-tiles-tools
+    sourceUrl: https://github.com/CesiumGS/3d-tiles-tools
+    acquiredAt: 2026-10-25
+    license: Apache-2.0
+    licenseFile: licenses/3d-tiles-tools-0.5.4.json
+    distribution: local-only
+    optional: true
+    fetch: fetch_tools.py
+    note: 体积约 208 MB（node_modules），默认不入库；需整树校验时用 fetch_tools.py --from <本机源目录>

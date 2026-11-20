@@ -1,0 +1,29 @@
+Cardo 低空解析 dsh 插件（cardo-osgb）
+Copyright (C) 2026 Cardo contributors
+
+本程序是自由软件：你可以依据 GNU Affero 通用公共许可证（AGPL-3.0-or-later）
+的条款重新分发和/或修改它。本程序按“无任何担保”分发，不附带任何默示担保，
+包括适销性或特定用途适用性的担保。详见 LICENSE。
+
+本程序通过 dsh（DeepSeek Harness）以技能形式运行。
+
+第三方组件
+----------
+1. fanvanzh-3dtiles v0.4（OSGB → 3D Tiles 转换器）
+   来源：https://github.com/fanvanzh/3dtiles
+   位置：Skills/02-工具探测/tools/fanvanzh-3dtiles/v0.4/
+2. 模型浏览引擎 assets/viewer
+   CesiumJS 1.147.0 — https://github.com/CesiumGS/cesium — Apache-2.0
+   Leaflet 1.9.4 — https://github.com/Leaflet/Leaflet — BSD-2-Clause
+   Caddy 2.10.0 — https://github.com/caddyserver/caddy — Apache-2.0
+   位置：assets/viewer/（各组件 LICENSE 随资产保留，登记见 assets/viewer/许可登记.json）
+3. Python 依赖
+   openpyxl（MIT）、python-docx（MIT）、numpy（BSD-3-Clause）、scipy（BSD-3-Clause）、
+   Pillow（HPND）、trimesh（MIT）、scikit-image（BSD-3-Clause）、opencv-python（Apache-2.0）。
+   逐项见 THIRD_PARTY_LICENSES.md。
+4. PyMuPDF（AGPL-3.0-or-later）— https://github.com/pymupdf/PyMuPDF — 用于 PDF 页码与页数核对（fitz）。
+
+示例数据
+--------
+仓库内项目名、地域、机构名已替换为通用示例；不含真实项目资料、院内文件与个人信息。
+

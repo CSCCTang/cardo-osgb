@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>三维模型浏览 · 离线</title>
+<link href="../vendor/cesium/Widgets/widgets.css" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b0e14; }
+  #cesiumContainer { position: absolute; inset: 0; }
+  .panel {
+    position: absolute; z-index: 10; color: #e8eef7;
+    font: 13px/1.6 "Microsoft YaHei", system-ui, sans-serif;
+    background: rgba(14, 19, 28, .82); border: 1px solid rgba(120, 160, 210, .35);
+    border-radius: 8px; padding: 10px 12px; backdrop-filter: blur(4px);
+  }
+  #diag { left: 12px; top: 12px; min-width: 232px; max-width: 300px; max-height: calc(100vh - 24px); overflow: auto; }
+  #diag .row > span:first-child { flex: none; white-space: nowrap; }
+  #diag .row > span:last-child { min-width: 0; overflow-wrap: anywhere; text-align: right; }
+  #diag b { color: #9fd0ff; font-weight: 600; }
+  #diag .row { display: flex; justify-content: space-between; gap: 10px; }
+  #diag .ok { color: #7ee0a2; } #diag .bad { color: #ff8a8a; }
+  #hint { left: 12px; bottom: 12px; max-width: 460px; max-height: 40vh; overflow: auto; }
+  #hint ol { margin: 4px 0 0 18px; padding: 0; }
+  #hint li { margin: 2px 0; }
+  #ctrl { right: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  #ctrl button {
+    cursor: pointer; padding: 6px 12px; border-radius: 6px; font: 13px "Microsoft YaHei", sans-serif;
+    color: #dceaf7; background: #1b2534; border: 1px solid #33506e;
+  }
+  #ctrl button:hover { background: #24344a; }
+  #ctrl button:disabled { opacity: .45; cursor: default; }
+  #proj { left: 320px; right: 140px; top: 12px; padding: 6px 14px; text-align: center;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #proj b { color: #9fd0ff; }
+  .cesium-widget-credits { display: none !important; }
+</style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<div id="proj" class="panel"><b id="pName">—</b><span id="pDesc"></span></div>
+
+<div id="diag" class="panel">
+  <div><b>本机实测诊断</b></div>
+  <div class="row"><span>模型状态</span><span id="d-state">加载中…</span></div>
+  <div class="row"><span>帧率 FPS</span><span id="d-fps">—</span></div>
+  <div class="row"><span>已渲染帧</span><span id="d-frames">0</span></div>
+  <div class="row"><span>模型中心纬度</span><span id="d-lat">—</span></div>
+  <div class="row"><span>模型中心经度</span><span id="d-lon">—</span></div>
+  <div class="row"><span>椭球高 (m)</span><span id="d-h">—</span></div>
+  <div class="row"><span>包围球半径 (m)</span><span id="d-r">—</span></div>
+  <div class="row"><span>同屏瓦片层级</span><span id="d-lods">—</span></div>
+  <div class="row"><span>单帧渲染耗时</span><span id="d-cost">—</span></div>
+  <div class="row"><span>渲染器</span><span id="d-gpu">—</span></div>
+</div>
+
+<div id="ctrl" class="panel">
+  <button data-v="overview">全景</button>
+  <button data-v="oblique">斜视</button>
+  <button data-v="close">建筑近景</button>
+  <button data-v="loddemo">LOD 推近</button>
+  <button data-act="timing">① 测渲染耗时</button>
+</div>
+
+<div id="hint" class="panel">
+  <b>看什么</b>
+  <ol>
+    <li>整体：鼠标左键拖拽旋转、滚轮推近，看贴图是否清晰。</li>
+    <li>近景：点"建筑近景"，看墙面/屋面纹理与原模型是否一致。</li>
+    <li>LOD：点"LOD 推近"，从远到近推一遍，观察画面是否出现重影或跳变。</li>
+    <li>左上角诊断面板：帧率、模型经纬度、椭球高，可现场核对。</li>
+  </ol>
+</div>
+
+<script src="../vendor/cesium/Cesium.js"></script>
+<script src="../project.js"></script>
+<script>
+/* 离线部署：不连 Cesium ion，不使用任何在线底图与地形 */
+Cesium.Ion.defaultAccessToken = undefined;
+const $ = (id) => document.getElementById(id);
+
+/* 机位缺省值；项目包 project.json 的 model.views 可覆盖 */
+const DEFAULT_VIEWS = {
+  overview: { rangeFactor: 3.4, pitchDeg: -55, headingDeg: 0 },
+  oblique:  { rangeFactor: 1.9, pitchDeg: -28, headingDeg: 25 },
+  close:    { rangeFactor: 0.75, pitchDeg: -14, headingDeg: 40 },
+  loddemo:  { rangeFactor: 0.35, pitchDeg: -12, headingDeg: 20 }
+};
+
+let tileset = null, center = null, projects = null;
+let collect = false, lodSeen = new Set();
+
+window.CardoProject.load().then(start).catch(function (err) {
+  if (err && err.cardo) window.CardoProject.showError(err);
+  else window.CardoProject.showError({ message: "页面初始化失败：" + ((err && (err.stack || err.message)) || String(err)), problems: [] });
+});
+
+function start(P) {
+  projects = P;
+  const C = P.config;
+  document.title = C.project.name + " · " + (C.project.subtitle || "三维模型浏览");
+  $('pName').textContent = C.project.name;
+  $('pDesc').textContent = C.project.description ? "　" + C.project.description : "";
+
+  const viewer = new Cesium.Viewer('cesiumContainer', {
+    baseLayer: false,
+    terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+    animation: false, timeline: false, geocoder: false, homeButton: false,
+    sceneModePicker: false, baseLayerPicker: false, navigationHelpButton: false,
+    fullscreenButton: false, infoBox: false, selectionIndicator: false,
+    shouldAnimate: false
+  });
+  viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0d1218');
+  viewer.scene.globe.showGroundAtmosphere = false;
+  viewer.scene.skyAtmosphere.show = false;
+  viewer.scene.fog.enabled = false;
+  viewer.scene.highDynamicRange = false;
+
+  let frames = 0, fpsT0 = performance.now();
+  viewer.scene.postRender.addEventListener(() => {
+    frames++;
+    const t = performance.now();
+    if (t - fpsT0 >= 500) {
+      $('d-fps').textContent = (frames * 1000 / (t - fpsT0)).toFixed(1);
+      $('d-frames').textContent = String(frames);
+      frames = 0; fpsT0 = t;
+    }
+  });
+
+  if (!C.model || !C.model.tileset) {
+    $('d-state').textContent = '本包未提供三维模型（未配置 model.tileset）';
+    $('d-state').className = 'bad';
+    document.querySelectorAll('#ctrl button').forEach(b => { b.disabled = true; });
+    return;
+  }
+
+  boot(viewer, P);
+}
+
+/* 统计一帧内真正参与绘制的瓦片，用层级分布判断 LOD 是否同时叠画 */
+function lodLevelOf(url) {
+  const m = /_L(\d+)_/.exec(url || '');
+  return m ? parseInt(m[1], 10) : null;
+}
+
+async function boot(viewer, P) {
+  try {
+    tileset = await Cesium.Cesium3DTileset.fromUrl(P.resolve(P.config.model.tileset));
+    viewer.scene.primitives.add(tileset);
+
+    tileset.tileVisible.addEventListener((tile) => {
+      if (!collect || !tile.content) return;
+      const url = tile.content.url || tile.content._url || '';
+      if (url) lodSeen.add(url);
+    });
+
+    const c = Cesium.Cartographic.fromCartesian(tileset.boundingSphere.center);
+    const lat = Cesium.Math.toDegrees(c.latitude);
+    const lon = Cesium.Math.toDegrees(c.longitude);
+    $('d-lat').textContent = lat.toFixed(6);
+    $('d-lon').textContent = lon.toFixed(6);
+    $('d-h').textContent = c.height.toFixed(1);
+    $('d-r').textContent = tileset.boundingSphere.radius.toFixed(1);
+    $('d-state').textContent = '已加载';
+    $('d-state').className = 'ok';
+    center = tileset.boundingSphere.center;
+    view('overview', viewer);
+
+    const gl = viewer.scene.context && viewer.scene.context._gl;
+    if (gl) {
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      if (dbg) $('d-gpu').textContent = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+    }
+    console.log('[viewer] tileset loaded', {
+      tiles: tileset.statistics ? tileset.statistics.numberOfTilesTotal : null,
+      center: { lat, lon, h: c.height },
+      radius: tileset.boundingSphere.radius
+    });
+  } catch (e) {
+    $('d-state').textContent = '加载失败：' + (e && e.message ? e.message : e);
+    $('d-state').className = 'bad';
+    console.error('[viewer] load failed', e);
+  }
+
+  document.querySelectorAll('#ctrl button').forEach(b => {
+    b.addEventListener('click', () => {
+      if (b.dataset.act === 'timing') measure(viewer);
+      else view(b.dataset.v, viewer);
+    });
+  });
+}
+
+/* 视角：全部基于模型包围球，不依赖任何外部坐标 */
+function view(kind, viewer) {
+  if (!center) return;
+  const views = Object.assign({}, DEFAULT_VIEWS, (projects.config.model && projects.config.model.views) || {});
+  const v = views[kind];
+  if (!v) return;
+  const r = tileset.boundingSphere.radius;
+  viewer.camera.flyToBoundingSphere(tileset.boundingSphere, {
+    offset: new Cesium.HeadingPitchRange(
+      Cesium.Math.toRadians(v.headingDeg === undefined ? 0 : v.headingDeg),
+      Cesium.Math.toRadians(v.pitchDeg === undefined ? -45 : v.pitchDeg),
+      r * (v.rangeFactor === undefined ? 2 : v.rangeFactor)),
+    duration: kind === 'loddemo' ? 6 : 1.2
+  });
+}
+
+/* 连续渲染 60 帧取平均，避免后台标签页 rAF 被节流导致 FPS 读数失真 */
+function measure(viewer) {
+  if (!tileset) return;
+  collect = true; lodSeen = new Set();
+  viewer.scene.render();
+  const N = 60;
+  const t0 = performance.now();
+  for (let i = 0; i < N; i++) viewer.scene.render();
+  const dt = performance.now() - t0;
+  collect = false;
+  const ms = dt / N;
+  $('d-cost').textContent = ms.toFixed(1) + ' ms/帧';
+  const lv = [...new Set([...lodSeen].map(lodLevelOf).filter(v => v !== null))].sort((a, b) => a - b);
+  $('d-lods').textContent = lv.length ? ('L' + lv.join(' / L')) : '—';
+  console.log('[viewer] timing', { msPerFrame: ms, frames: N, lodLevels: lv, visibleTiles: lodSeen.size });
+}
+</script>
+</body>
+</html>

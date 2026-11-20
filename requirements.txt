@@ -1,0 +1,11 @@
+# 运行依赖（pip）：按能力选型，不做“不用依赖”的自我限制。
+# 安装（国内镜像加速）：python -m pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+openpyxl>=3.1,<4          # 07 xlsx
+python-docx>=1.1,<2       # 07 docx
+numpy>=2.0,<3             # 06/09 网格向量化；纹理像素统计
+scipy>=1.14,<2            # 09 形态学/滤波/连通域/最近邻补洞（ndimage）；06 无 numpy 时不需要
+Pillow>=10,<12            # 05 纹理解码（JPEG/PNG 头 + 缩略图颜色统计）
+trimesh>=4,<6             # 网格分析（面法线/连通分量/简化；已在 06 顶面口径使用）
+scikit-image>=0.24,<0.27  # 09 分水岭建筑实例化（peak_local_max + watershed）；纹理颜色聚类诊断
+opencv-python>=4.10,<6    # 纹理解码/轮廓加速（诊断 PoC，可被 Pillow 回退）
+pymupdf>=1.24,<2          # 07 PDF 目录页码与页数核对（fitz）
