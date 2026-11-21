@@ -4,12 +4,12 @@
   "generator": "Skills/00-Cardo低空解析总控/scripts/package_manifest.py",
   "files": {
     "Skills/00-Cardo低空解析总控/scripts/pipeline.py": {
-      "bytes": 53145,
-      "sha256": "2dc7b287c26ef6d75b0b61b597ce495cd8c17a0be002f1c550595be77adbe30f"
+      "bytes": 53280,
+      "sha256": "0c2ac8b4a0e6d3704af6f74007f4e1bd11074948c1b046c6bcc7c589ed649e8d"
     },
     "Skills/00-Cardo低空解析总控/scripts/export_algo_table.py": {
-      "bytes": 15343,
-      "sha256": "2f3fe61ae5bf0fa08699cbb1b20f38054264a70640a011efc766f323401214d1"
+      "bytes": 15358,
+      "sha256": "e76122a842032fc41abe38da68b7cdf6fea2fc2d350d003a77e43829b88946a8"
     },
     "Skills/01-模型包接入/scripts/unpack_model.py": {
       "bytes": 30786,
@@ -20,16 +20,16 @@
       "sha256": "57c011973003e5c1273f1f24d9cac6953ed9a466cfc21cf9f6b5f6e179a147d9"
     },
     "Skills/02-工具探测/scripts/fetch_tools.py": {
-      "bytes": 5378,
-      "sha256": "4a2cbc9c8dea636f6cea511d345c0739ce9aabf6b0120352adc147df3def8e6f"
+      "bytes": 5423,
+      "sha256": "b3be11e35108349faa7ba29378b3d6647cf0b13cca9bb4cdf0a798bcd5eab1f7"
     },
     "Skills/02-工具探测/scripts/verify_tools.py": {
-      "bytes": 6940,
-      "sha256": "2988a80329e8e4b6f0cb26a0c2a1647a0dc323233f2b3a159d358b25a966d195"
+      "bytes": 6985,
+      "sha256": "6fb790b63838177cd22374a61f4ca30c6a85e4050552c77e001b1c6069ed510a"
     },
     "Skills/03-OSGB转3DTiles/scripts/convert.py": {
-      "bytes": 16775,
-      "sha256": "5a20d6c80b3447ae4f9c04e15924bdd0b872fbf0a2eeccecbe6612968fdb2cf1"
+      "bytes": 16790,
+      "sha256": "77fca7f2d64a3169dec643831f8b5157768daea4129540f193c5a3f8942dc744"
     },
     "Skills/04-垂直配准修正/scripts/fix_registration.py": {
       "bytes": 7239,
@@ -40,8 +40,8 @@
       "sha256": "ee95432fd2095299e6132f1132e5fd899c359fe836517a0ed638536d3f573ad4"
     },
     "Skills/05-模型体检/scripts/check_contract.py": {
-      "bytes": 12179,
-      "sha256": "9613194b951ed379acddfb58ad21a41050ded46404f0d64704abeff935d87b7a"
+      "bytes": 12209,
+      "sha256": "080628251e8b449c4cc01beebe7df0b1e76d0cbd2faf8f80d669562eefbf2dd8"
     },
     "Skills/06-2.5D网格指标/scripts/build_indicators.py": {
       "bytes": 5864,
@@ -88,24 +88,24 @@
       "sha256": "fe40f9106452f88d66791a709485cd5dd19fa60b41a0b7ed9fd5a136b4b0d47b"
     },
     "Skills/09-三维要素反演/scripts/run_reconstruct.py": {
-      "bytes": 44853,
-      "sha256": "045c11742b57085bc599e9ce2c58d8c5f771f86223976e147c03f22e682fc910"
+      "bytes": 44883,
+      "sha256": "a205a99a1ce8bcc2c3715f6eaaae2fb5afbf8d062f90740a749f5aebfdb4ae58"
     },
     "Skills/10-矢量入库/scripts/build_vectors.py": {
-      "bytes": 30706,
-      "sha256": "8c0997b586982fe978896618a1d9d3d5b539d15a6f127389f2949d8f71008433"
+      "bytes": 30736,
+      "sha256": "72cc9d7d92c3650710ac8b57429d82fba0afbede7e04e26cfc8db1fc90780154"
     },
     "Skills/11-几何增强/scripts/run_enhance.py": {
-      "bytes": 5601,
-      "sha256": "b62ef4547987be2e4538d921ed65cbf05179d38d54c7aa080c0bace7cbc8fcf1"
+      "bytes": 5646,
+      "sha256": "cbc70db2bf50269f6fb92dd4295997627e8a2bce686ecf291ac838226b8f5a3e"
     },
     "Skills/12-屋顶与立面/scripts/run_roof_facade.py": {
-      "bytes": 3390,
-      "sha256": "b5c36e8e8c5afc7bd2896b024e0048be6524b8210b71e32043fe0c150bd0af57"
+      "bytes": 3420,
+      "sha256": "b40ffa8d385ca28762dfff0d3c8892060a7f8e6ec9637bdd83de872d4e6b92c6"
     },
     "Skills/13-矢量增强/scripts/run_vector.py": {
-      "bytes": 4434,
-      "sha256": "3c7e70aeb178b4d0b75ee3810cad9683753aa5a25d8136494b219c954666b5a2"
+      "bytes": 4479,
+      "sha256": "65dc11889c9be8100ef5b38a3e3d45159910ae2f85c7d2bf2d2b30b6afb97f93"
     },
     "Skills/14-扩展指标/scripts/build_extended_metrics.py": {
       "bytes": 31266,
