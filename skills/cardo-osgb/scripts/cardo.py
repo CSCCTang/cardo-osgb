@@ -7,7 +7,9 @@
     python <技能目录>/scripts/cardo.py [开工.py 参数...] 以当前目录为工作区运行开工.py
 
 工作区：默认取当前目录；第一次调用先建目录架构（幂等，已存在不覆盖）并逐条说明放什么。
-建完直接往下跑；只有没有任何输入/过程件、且没给流水线参数时才停，说明缺什么、放哪里。
+建完直接往下跑；只有没有任何输入/过程件、且没给流水线参数时才停一次，给出放置说明
+（放哪个目录、放什么、放好回一句），收到确认后一口气跑完。
+不做轮询、不做后台守候、不自动扫描目录变化。
 显式 --workspace 越界（插件安装目录 / DSH_HOME）时拒绝并给出可用默认路径；
 未显式指定且当前目录越界时，改用默认工作区 %USERPROFILE%/Cardo工作区/cardo-osgb-<时间戳>。
 
@@ -26,7 +28,7 @@ from pathlib import Path
 PACKAGE = "CardoOSGB"
 ENTRY = "开工.py"
 NAME = "cardo-osgb"
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 # 工作区目录架构与用途：与包内 开工.py 的 DIRS 对齐；只建目录，不写内容
 DIR_GUIDE = [('输入文件', '放原始材料'), ('输入文件/01-模型包', 'OSGB 模型包 zip 放这里（整个 OSGB 目录打成一个 zip，含 metadata.xml 与 Data\\）'), ('过程文件', '流水线中间件与运行报告，跑完之前不要动'), ('成果文件', '最终交付件，跑完在这里取'), ('记忆与规则', '本项目的规则与记忆，跨会话复用')]
 DIRS = [rel for rel, _ in DIR_GUIDE]
@@ -292,6 +294,10 @@ def main(argv):
     if "--version" in argv:
         print("%s %s" % (NAME, VERSION))
         return 0
+    if any(a == "--wait" or a.startswith("--wait=") or a == "--intake" for a in argv):
+        print("本流程不做等待/轮询，也没有逐项确认模式：材料没到位就停一次，说明放哪个目录、放什么；"
+              "放好后回一句「放好了」，再重跑即可。", file=sys.stderr)
+        return 2
     if "--doctor" in argv:
         return doctor()
     if "--where" in argv:
@@ -322,8 +328,10 @@ def main(argv):
         print_guide(ws)
     if not _action_args(args) and not _has_files(ws, *intake):
         print("", flush=True)
-        print("还没有输入文件，先不开工。请把材料放进上面的「输入文件」目录（缺什么、放哪里见各目录说明）。", flush=True)
-        print("材料放好后直接再运行一次即可，不用回复「继续」或逐项确认。", flush=True)
+        print("还没有输入文件，本轮先停这一次。", flush=True)
+        print("请把 OSGB 模型包 zip 放到：%s" % os.path.join(ws, "输入文件", "01-模型包"), flush=True)
+        print("要求：整个 OSGB 目录打成一个 zip，解压后单一根目录且含 metadata.xml，坐标系 EPSG:4544。", flush=True)
+        print("放好后回一句「放好了」，我再一口气跑完；我不轮询、不后台守候、不自动扫描目录。", flush=True)
         return 0
 
     if pkg is None:

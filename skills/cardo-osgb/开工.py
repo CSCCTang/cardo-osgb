@@ -6,7 +6,8 @@
   依赖自检（缺就在包根建 .venv，按 阿里云 → 清华 → USTC → 官方源 回退安装；首次较慢）
   → 建目录并核对自带转换工具 → 校验模型包（唯一 zip / 布局 / SRS=EPSG:4544）与参数 → 调 01→08 流水线。
 
-缺料不黑箱：会问（缺什么 / 放到哪 / 怎么准备）、可等（--wait <秒>）、并留 待补料.json。
+缺料不黑箱：会说明（缺什么 / 放到哪 / 怎么准备）、留 待补料.json，并且只停这一次；
+不做轮询、不做后台守候、不自动扫描目录变化，等用户回一句「放好了」再一口气跑完。
 
 退出码：0 全过；3 缺料或料不对（可指导修正）；1 流水线硬失败；2 环境或结构问题。
 """
@@ -25,7 +26,6 @@ import traceback
 # （实测交付库里混进过 19 个 pyc）。这里在导入任何本地模块之前就关掉。
 sys.dont_write_bytecode = True
 
-import time
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -57,7 +57,7 @@ TOOLS = [
 ]
 # 两件资产（浏览引擎 + 转换器）都随包分发，装完即用；缺了就是安装包不完整，不是「让你去下载」。
 VIEWER_HINT = ("包内缺模型浏览引擎 assets/viewer（安装包不完整）：请重新安装本插件"
-               "（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.0）。")
+               "（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.3）。")
 
 
 def viewer_ready() -> bool:
@@ -164,69 +164,13 @@ def write_intake_list(rows) -> Path:
                                           else "照常开工，产物给初步判定（推断＋置信度），缺口进数据缺口清单"), ""]
     lines += ["## 3. 下一步", "",
               "```text",
-              "python <技能目录>/scripts/cardo.py --intake   # 一项一项问，确认落位".format(SKILL.name),
-              "python <技能目录>/scripts/cardo.py            # 直接校验并开工".format(SKILL.name),
-              "```", ""]
+              "python <技能目录>/scripts/cardo.py            # 料放好后重跑，一口气跑完".format(SKILL.name),
+              "```",
+              "",
+              "缺料时只停这一次：按上面「放到」的绝对路径放好，回一句「放好了」再重跑即可；",
+              "不做轮询、不做后台守候、不自动扫描目录变化。", ""]
     target.write_text("\n".join(lines), encoding="utf-8")
     return target
-
-
-def run_intake(rows) -> int:
-    """一项一问：给绝对路径、给准备方法、确认是否已放好。返回 0 继续，3 待补料。
-
-    非交互终端（重定向 stdin、CI、agent 调用）**不抛栈**：打印清单后返回 3。
-    """
-    if not sys.stdin or not sys.stdin.isatty():
-        say("  当前不是交互终端（stdin 不是终端），只输出清单，不追问。")
-        say("  要我等你放料请加 --wait <秒>，我会每隔几秒复扫一次。")
-        return 3
-    say("")
-    say("  ---- 收料引导（一项一项来；回车=已放好，输入 s=暂时没有，q=退出）----")
-    for item, hits in rows:
-        if hits:
-            say("  [已到位] {}：{}".format(item["name"], norm(hits[0].relative_to(ROOT))))
-            continue
-        say("")
-        say("  需要：{}（{}）".format(item["name"], "必需" if item["required"] else "可选"))
-        say("  放到：{}".format(norm(ROOT / item["dst"])))
-        say("  怎么来：{}".format(item["how"]))
-        say("  用途：{}".format(item["why"]))
-        while True:
-            try:
-                answer = input("  放好了吗？[回车=好了 / s=没有 / q=退出] ").strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                # stdin 已结束或用户中断：不当成"放好了"，按缺料退出，不抛栈
-                say("")
-                say("  · 输入已结束，按「还没放好」处理。")
-                if item["required"]:
-                    say("  ! 这一项是硬门槛，缺了不能开工。放好后重跑即可。")
-                    return 3
-                say("  · 记为缺口：产物照样给初步判定，缺口进数据缺口清单，不影响开工。")
-                break
-            if answer in ("", "y", "yes"):
-                break
-            if answer in ("s", "n", "no", "没有"):
-                if item["required"]:
-                    say("  ! 这一项是硬门槛，缺了不能开工。补好后重跑。")
-                    return 3
-                say("  · 记为缺口：产物照样给初步判定，缺口进数据缺口清单，不影响开工。")
-                break
-            if answer in ("q", "quit", "exit"):
-                say("  已退出收料引导；清单已保存到 放料清单.md")
-                return 3
-            say("  只认 回车 / s / q。")
-        found = []
-        for pattern in item["patterns"]:
-            found.extend(path for path in (ROOT / "输入文件").rglob(pattern)
-                         if path.is_file() and not path.name.startswith("~$") and "空白" not in path.name)
-        if not found:
-            say("  ! 没在 输入文件/ 下找到匹配 {} 的文件{}".format(
-                "、".join(item["patterns"]), "（必需项，先放料）" if item["required"] else ""))
-            if item["required"]:
-                return 3
-    say("")
-    say("  收料完成，继续校验与开工。")
-    return 0
 
 
 MIRRORS = [
@@ -577,30 +521,6 @@ def write_pending(rows, blockers: list[str], notes: list[str]) -> Path:
     return target
 
 
-def wait_for_input(seconds: int, interval: int = 5) -> bool:
-    """等用户放料：每 interval 秒复扫一次模型包目录，放到就自动继续。
-
-    返回 True=等到并继续；False=超时或仍缺料。
-    """
-    target = ROOT / "输入文件/01-模型包"
-    deadline = time.time() + seconds
-    said = False
-    while time.time() < deadline:
-        zips = find_zips()
-        if len(zips) == 1:
-            say("  ✓ 检测到模型包：{}（{} 字节）".format(zips[0].name, zips[0].stat().st_size))
-            return True
-        if len(zips) > 1:
-            say("  ! 现在有 {} 个 zip：{}；只能留一个，移走多余的。".format(
-                len(zips), "、".join(p.name for p in zips)))
-        if not said:
-            say("  ⏳ 等你放模型包，最长 {} 秒；放到 {} 即可，我会自动继续。".format(
-                seconds, norm(target)))
-            said = True
-        time.sleep(interval)
-    return False
-
-
 def check_zip(p: Path) -> tuple[bool, str]:
     """预检模型包：判据与 01 步实跑完全同源（调 01 步的 --check-only）。
 
@@ -908,10 +828,6 @@ def _main(argv=None) -> int:
     ap.add_argument("--scene-id", default="", help="模型场景 ID（纯 ASCII，默认 model-01）")
     ap.add_argument("--from", dest="start_from", default="", help="从第几步开始（续跑用，如 01）")
     ap.add_argument("--to", dest="stop_at", default="", help="跑到第几步为止（如 02 冒烟）")
-    ap.add_argument("--intake", action="store_true",
-                    help="收料引导：一项一项问，给绝对路径与准备方法，确认后再校验开工")
-    ap.add_argument("--wait", type=int, default=0, metavar="秒",
-                    help="缺料时最多等待多少秒，每 5 秒复扫一次；等到了自动继续（默认 0=不等）")
     ap.add_argument("--check", action="store_true", help="只做结构与输入校验，不跑流水线")
     ap.add_argument("--no-install", action="store_true", help="缺依赖时不安装")
     ap.add_argument("--dry-run", action="store_true", help="只打印将要执行的命令")
@@ -965,7 +881,7 @@ def _main(argv=None) -> int:
         say("")
         say("  [提示] 包内缺模型浏览引擎（assets/viewer）：安装包不完整，07 会跳过「模型浏览」。")
         say(f"    期望：{norm(SKILL / 'assets/viewer/tool/caddy.exe')}")
-        say("    处置：重新安装本插件（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.0）")
+        say("    处置：重新安装本插件（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.3）")
         say("")
     else:
         say(f"      模型浏览引擎：在位（{norm(SKILL / 'assets/viewer')}）")
@@ -974,13 +890,6 @@ def _main(argv=None) -> int:
     ready = sum(1 for item, hits in rows if hits)
     list_path = write_intake_list(rows)
     say(f"  放料清单：{norm(list_path.relative_to(ROOT))}（已到位 {ready}/{len(rows)} 项）")
-    if args.intake:
-        code = run_intake(rows)
-        rows = intake_scan()
-        write_intake_list(rows)
-        if code != 0:
-            say(f"  按清单放料后重跑：{cmd_hint()}，或再跑 --intake 逐项确认")
-            return code
 
     say("[3/4] 参数与输入")
     params = load_params()
@@ -990,32 +899,17 @@ def _main(argv=None) -> int:
         params["sceneId"] = args.scene_id
     blockers, notes = precheck(params)
 
-    # 缺料：先问、再等、最后留一份机器可读清单（不让流程"黑箱"地退出去）
-    waited = False
-    if blockers and args.wait > 0 and any("缺必需输入" in b for b in blockers):
-        say(f"  缺模型包。我先等最多 {args.wait} 秒，你放到下面这个目录即可：")
-        say(f"    {norm(ROOT / '输入文件/01-模型包')}")
-        if wait_for_input(args.wait):
-            waited = True
-            blockers, notes = precheck(params)
-            if not blockers:
-                say("  ✓ 料已到位，继续校验。")
-    if waited:
-        say("  （已等待并复扫过）")
-
     for n in notes:
         say(f"  · {n}")
     if blockers:
         for b in blockers:
             say(f"  ✗ {b}")
-        say(f"  放料目录（绝对路径）：{norm(ROOT / '输入文件')}")
-        say(f"  逐项确认：{cmd_hint('--intake')}")
-        if args.wait <= 0:
-            say(f"  想让我等你放料：{cmd_hint('--wait 300')}")
+        say(f"  本轮到此为止，只停这一次：请把 OSGB 模型包 zip 放到 {norm(ROOT / '输入文件/01-模型包')}，"
+            f"放好后回一句「放好了」再重跑 {cmd_hint()}。")
+        say("  不做轮询、不做后台守候、不自动扫描目录变化。")
         rows = intake_scan()
         pending = write_pending(rows, blockers, notes)
         say(f"  待补料清单：{norm(pending.relative_to(ROOT))}（缺什么、放哪、怎么重跑，都在里面）")
-        say(f"  补齐后重跑：{cmd_hint()}")
         return 3
     write_json(ROOT / PARAMS, params)
     say(f"  场景：{params['sceneId']}" + (f"｜项目：{params['projectName']}" if params.get("projectName") else ""))
