@@ -20,7 +20,7 @@
     roof-segment.json / roof-segment.md / _done；_patches/roof-segment.json
 
 用法（工作区根）：
-    python Skills/12-屋顶与立面/scripts/roof_segment.py --workspace .
+    python <技能目录>/Skills/12-屋顶与立面/scripts/roof_segment.py --workspace .
 退出码：0 可用；2 缺输入；3 产出但不可用；4 产物已存在未给 --force。
 """
 from __future__ import annotations

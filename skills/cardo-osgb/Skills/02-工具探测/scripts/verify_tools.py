@@ -17,9 +17,9 @@
   · 对整段 UTF-8 字节取 sha256，输出大写 hex
 
 用法（工作区根为 cwd）：
-    python Skills/02-工具探测/scripts/verify_tools.py
-    python Skills/02-工具探测/scripts/verify_tools.py --tools-dir <工具根>
-    python Skills/02-工具探测/scripts/verify_tools.py --json
+    python <技能目录>/Skills/02-工具探测/scripts/verify_tools.py
+    python <技能目录>/Skills/02-工具探测/scripts/verify_tools.py --tools-dir <工具根>
+    python <技能目录>/Skills/02-工具探测/scripts/verify_tools.py --json
 退出码：0 全部通过；2 工具缺失；3 校验不符。
 """
 from __future__ import annotations

@@ -14,8 +14,8 @@
     栅格/栅格.npz + 三维要素反演.json + 反演报告.md
 
 用法（工作区根）：
-    python Skills/09-三维要素反演/scripts/run_reconstruct.py
-    python Skills/09-三维要素反演/scripts/run_reconstruct.py --cell-m 0.5 --ground-window-m 18
+    python <技能目录>/Skills/09-三维要素反演/scripts/run_reconstruct.py
+    python <技能目录>/Skills/09-三维要素反演/scripts/run_reconstruct.py --cell-m 0.5 --ground-window-m 18
 退出码：0 通过；2 缺 cardo-lowair-model.json；3 反演不可用或闸门不过；4 产物已存在未给 --force。
 """
 from __future__ import annotations

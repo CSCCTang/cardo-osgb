@@ -14,7 +14,7 @@
     pc-classify.json / pc-classify.md / _done；_patches/pc-classify.json
 
 用法（工作区根）：
-    python Skills/11-几何增强/scripts/pc_classify.py --workspace .
+    python <技能目录>/Skills/11-几何增强/scripts/pc_classify.py --workspace .
 退出码：0 可用；2 缺输入；3 产出但不可用；4 产物已存在未给 --force。
 """
 from __future__ import annotations

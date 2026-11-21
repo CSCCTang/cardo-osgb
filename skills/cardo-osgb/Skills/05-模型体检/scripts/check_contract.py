@@ -11,8 +11,8 @@
 > （错误信息列出前 5 条）。它不重算几何/不做几何真值校验，那部分由 `health_of` 的 H-01…H-06 兜住。
 
 用法（工作区根为 cwd；本脚本与 05 的 `inspect_model.py` 同目录）：
-    python Skills/05-模型体检/scripts/check_contract.py --model "<产物根>/cardo-lowair-model.json"
-    python Skills/05-模型体检/scripts/check_contract.py --model "<产物根>/cardo-lowair-model.json" --json
+    python <技能目录>/Skills/05-模型体检/scripts/check_contract.py --model "<产物根>/cardo-lowair-model.json"
+    python <技能目录>/Skills/05-模型体检/scripts/check_contract.py --model "<产物根>/cardo-lowair-model.json" --json
 """
 from __future__ import annotations
 

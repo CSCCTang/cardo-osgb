@@ -19,7 +19,7 @@
 绝不留一个坏 GPKG 冒充成果。
 
 用法（工作区根）：
-    python Skills/13-矢量增强/scripts/vector_gpkg.py --workspace .
+    python <技能目录>/Skills/13-矢量增强/scripts/vector_gpkg.py --workspace .
 退出码：0 可用；2 缺输入；3 产出但自检不过；4 产物已存在未给 --force。
 """
 from __future__ import annotations

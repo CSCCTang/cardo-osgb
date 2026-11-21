@@ -12,7 +12,7 @@
 `提资数据/课题资料/调研无人机算法平台功能汇总表.xlsx` 的「开源」表，逐项对照。
 
 用法（工作区根）：
-  python Skills/00-Cardo低空解析总控/scripts/export_algo_table.py --workspace .
+  python <技能目录>/Skills/00-Cardo低空解析总控/scripts/export_algo_table.py --workspace .
 退出码：0 成功；2 注册表缺失 / 参数非法。
 """
 from __future__ import annotations

@@ -21,8 +21,8 @@
 
 只读 09 产物，**不重算高度、不改原始模型**；不跨技能 import。
 用法（工作区根）：
-    python Skills/10-矢量入库/scripts/build_vectors.py
-    python Skills/10-矢量入库/scripts/build_vectors.py --min-area-m2 20 --precision 2 --force
+    python <技能目录>/Skills/10-矢量入库/scripts/build_vectors.py
+    python <技能目录>/Skills/10-矢量入库/scripts/build_vectors.py --min-area-m2 20 --precision 2 --force
 退出码：0 通过；2 缺 09 产物；3 闸门不过（含：清理后一栋不剩、或产物自检失败）；4 输出已存在未给 --force。
 """
 from __future__ import annotations

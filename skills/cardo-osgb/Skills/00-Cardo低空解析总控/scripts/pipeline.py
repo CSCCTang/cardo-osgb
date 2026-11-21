@@ -3,14 +3,14 @@
 """00 · Cardo 低空解析总控：唯一入口（run / algos / status / scaffold）。
 
 用法（一律在工作区根执行）：
-    python Skills/00-Cardo低空解析总控/scripts/pipeline.py run --workspace .
-    python Skills/00-Cardo低空解析总控/scripts/pipeline.py run --workspace . --from 03 --to 06
-    python Skills/00-Cardo低空解析总控/scripts/pipeline.py algos                     # 看现在能跑哪些算法
-    python Skills/00-Cardo低空解析总控/scripts/pipeline.py algos --all               # 含不可用项与原因
-    python Skills/00-Cardo低空解析总控/scripts/pipeline.py run --select              # 交互式挑算法
-    python Skills/00-Cardo低空解析总控/scripts/pipeline.py run --algos recon.ndsm,recon.instance
-    python Skills/00-Cardo低空解析总控/scripts/pipeline.py status --workspace .
-    python Skills/00-Cardo低空解析总控/scripts/pipeline.py scaffold --target ../CardoOSGB-B
+    python <技能目录>/Skills/00-Cardo低空解析总控/scripts/pipeline.py run --workspace .
+    python <技能目录>/Skills/00-Cardo低空解析总控/scripts/pipeline.py run --workspace . --from 03 --to 06
+    python <技能目录>/Skills/00-Cardo低空解析总控/scripts/pipeline.py algos                     # 看现在能跑哪些算法
+    python <技能目录>/Skills/00-Cardo低空解析总控/scripts/pipeline.py algos --all               # 含不可用项与原因
+    python <技能目录>/Skills/00-Cardo低空解析总控/scripts/pipeline.py run --select              # 交互式挑算法
+    python <技能目录>/Skills/00-Cardo低空解析总控/scripts/pipeline.py run --algos recon.ndsm,recon.instance
+    python <技能目录>/Skills/00-Cardo低空解析总控/scripts/pipeline.py status --workspace .
+    python <技能目录>/Skills/00-Cardo低空解析总控/scripts/pipeline.py scaffold --target ../CardoOSGB-B
 
 纪律：
 · 每步用**独立子进程**跑该技能 scripts 下的脚本（不跨技能 import），cwd 固定为工作区根；
@@ -967,7 +967,7 @@ def cmd_scaffold(args) -> int:
             "- **未复制**：`过程文件/`、`成果文件/`、`记忆与规则/验证基线-CardoOSGB.json`（基线属于具体模型，"
             "新工作区首跑后应重新生成自己的基线）。",
             "", "## 怎么跑", "", "```bash",
-            "python Skills/00-Cardo低空解析总控/scripts/pipeline.py run --workspace .",
+            "python <技能目录>/Skills/00-Cardo低空解析总控/scripts/pipeline.py run --workspace .",
             "```", "",
             "换模型：把新模型 zip 放到 `输入文件/01-模型包/`（只放一个），或 `--input-zip <相对路径>`。", ""]))
     print(f"[00] scaffold 完成：{target}")

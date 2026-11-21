@@ -26,6 +26,7 @@ export function apply(ctx) {
     name: 'cardo-osgb',
     description: "Cardo 低空解析流水线：OSGB 转 3D Tiles、模型体检与现状指标。",
     whenToUse: "用户要把 OSGB 倾斜模型包转成 3D Tiles、做模型体检与现状指标，产出《模型体检报告》《现状指标》《指标说明》时使用。",
+    source: 'custom',
     content: skillBody(readFileSync(join(skillDir, 'SKILL.md'), 'utf8')),
     resourceBase: { kind: 'directory', path: skillDir },
   })

@@ -4,31 +4,41 @@ description: Cardo 低空解析流水线（自包含）。当用户要把 OSGB �
 ---
 > **dsh 插件运行方式（构建脚本生成，勿手改）**
 >
-> 本文件是插件 `cardo-osgb` 内嵌的技能正文。正文里出现的 `python CardoOSGB\开工.py <参数>`，在本插件中一律改写为
-> `python <技能目录>/scripts/cardo.py <参数>`，其中 `<技能目录>` 取工具结果 `<skill_resources>` 里 resourceBase 给出的目录。
+> 本文件是插件 `cardo-osgb` 内嵌的技能正文。技能目录就是工具结果 `<skill_resources>` 里 `resourceBase` 给出的目录，
+> 下文记作 `<技能目录>`。**正文里的命令已全部写成 `python "<技能目录>/scripts/cardo.py" <参数>`**，
+> 照着执行即可：不要拼 `CardoOSGB\...`、不要猜安装位置、也不要做路径替换。
+> `开工.py`、`Skills\`、`requirements.txt` 都与 `scripts\cardo.py` 同在技能目录内，由启动器转交。
 >
-> 启动器 `cardo.py` 负责定位 Cardo 交付包、用本机已有的 `runtime\python` 运行 `开工.py`，工作区默认取当前目录，
-> 不联网、不装依赖、不上传任何文件。定位顺序：`CARDO_PACKAGE` → `CARDO_HOME\CardoOSGB` → 当前目录及上三级 → `%USERPROFILE%\Cardo交付`。
-> 运行时顺序：`CARDO_RUNTIME` → 交付包自带 `runtime` → `CARDO_RUNTIME_HOME\CardoOSGB\runtime` → `CARDO_HOME\CardoOSGB\runtime`。
+> 启动器 `cardo.py` 负责定位包内 `开工.py` 并选 Python：优先包内 `runtime\python`；派生包没有 runtime 时用系统
+> Python，并在 `%LOCALAPPDATA%\cardo\venv-osgb` 按 `requirements.txt` 建环境。不联网、不上传任何文件。
 >
-> 全部输入都是**本地文件夹或本地文件路径**：用户可在对话里直接给绝对路径，或用 dsh 自带的"选择工作区目录"把路径设为当前目录。
+> **工作目录**：给插件一个独立空文件夹（设为当前目录，或在命令后加 `--workspace "<工作区>"`）。
+> 首次在新工作区运行会先按约定建出目录架构（已存在则跳过、不覆盖），再交给 `开工.py`。
+> 不接受把工作目录设在插件安装目录（`node_modules\cardo-osgb`）或 `DSH_HOME` 内：
+> 显式 `--workspace` 越界会直接拒绝并给出可用默认路径；未指定 `--workspace` 且当前目录越界时，
+> 启动器改用默认工作区 `%USERPROFILE%\Cardo工作区\cardo-osgb-<时间戳>\`，并在输出里说明。
+>
+> 全部输入都是**本地文件夹或本地文件路径**：用户在对话里给绝对路径，或用 dsh 自带的“选择工作区目录”把路径设为当前目录。
 > 本包不自带前端界面，产物落在工作区，结果在对话里返回。
 >
-> **工作目录**：给插件一个独立空文件夹（`--workspace <文件夹>` 或设为当前目录），成果与中间件都只写在这里。
-> 不接受把工作目录设在插件安装目录（`node_modules\cardo-osgb`）、`DSH_HOME` 或交付包目录内——遇到就提示并停止。
-> 每次最好用新文件夹；多个包各用各的文件夹，互不读写。
->
-> 首次使用先跑 `python <技能目录>/scripts/cardo.py --doctor`；找不到交付包时按提示设置 `CARDO_HOME`
-> （指向包含 `CardoOSGB\` 的目录，例如 `C:\path\to\cardo-packages`），运行时也可用 `CARDO_RUNTIME` 指向已有 runtime 目录。
+> **第一次调用**：先跑 `python "<技能目录>/scripts/cardo.py"`（不带参数）。它会在工作区建好目录架构、
+> 逐条说明每个目录放什么，然后停下等你放料；**没有输入不要自己往下跑**。
+> 环境自检用 `python "<技能目录>/scripts/cardo.py" --doctor`（打印交付包、入口、Python 与默认工作区）。
 
 # CardoOSGB · 低空解析流水线
 
-一个文件夹就是这条流水线：把 `CardoOSGB/` 整个放进用户的项目文件夹，**不用安装、不用配置**。
+一个文件夹就是这条流水线：独立使用时把 `CardoOSGB/` 整个放进用户的项目文件夹；插件方式下它已装在技能目录里，**不用安装、不用配置**。
 
 **独立工作区、独立交付**：一个包一个工作区、一份交付；四包放同一目录不会自动串联，也不共用状态文件。
 跨包只靠产物交接——把本包 `过程文件/06-2.5D网格指标/现状指标.json` 复制给下游 `输入文件/`；xlsx 仅人读留档。
 低空产物在下游的定位是**量化证据**（指标表、附图、问题清单），不承担正文叙事。
 判断 vs 实测的分工与单会话自足要求，见《Cardo 四包通用规范》（`交付规范/Cardo四包通用规范.md`）。
+
+**交互节奏（插件版，四步）**：
+1. **进场先建目录**：第一次调用先跑 `python "<技能目录>/scripts/cardo.py"`，它会把 `输入文件\`、`过程文件\`、`成果文件\` 等目录建好（幂等，已存在不覆盖），并逐条说明每个目录放什么——把这段说明原样转给用户。
+2. **建完就停**：没有输入文件不开工。缺料时说清缺什么、放到哪个目录，等用户放好再继续。
+3. **岔口让用户拍板**：选方案、定口径、改参数、跳步这类判断，一次只问一个，摆出可选项请用户选，不替用户默认。
+4. **用户回「继续」后再跑**：材料到位后重跑 `python "<技能目录>/scripts/cardo.py"` 往下走。
 
 **放料清单**：`开工.py` 会在工作区生成 `放料清单.md`，列出要什么、放哪、现在到没到；本文档是执行细则。
 **首次运行自动备依赖**：缺依赖就在用户缓存（`%LOCALAPPDATA%\cardo\venv-osgb`）按 `requirements.txt`
@@ -42,18 +52,17 @@ description: Cardo 低空解析流水线（自包含）。当用户要把 OSGB �
 
 **包完整性自带校验**：`PACKAGE_MANIFEST.json` 记着关键脚本 / 自带工具二进制 / runtime 依赖的 sha256。
 每次开工前先核对一遍，**缺什么、被改过什么，一屏列全**（不用跑到一半才炸）。
-拷包时若这个文件没跟过去，用 `python Skills\\00-Cardo低空解析总控\\scripts\\package_manifest.py generate` 重建基线。
-
+拷包时若这个文件没跟过去，用 `python "<技能目录>/Skills/00-Cardo低空解析总控/scripts/package_manifest.py" generate` 重建基线。
 
 **技能包只读**：本文件夹里的 `SKILL.md`、`开工.py`、`requirements.txt`、`Skills/`（含 `tools/` 工具）、`assets/` 在开工过程中一个字节都不会被写；
 运行期状态只写工作区与用户缓存。
-工作区默认是**本文件夹的上一级目录**（独立使用时即项目文件夹，如 `XX项目/`；以插件方式安装时请用 `--workspace` 指定项目目录）：`输入文件/` 放料、`过程文件/` 留痕、`成果文件/` 出活，
+工作区默认取**当前目录**（插件方式；独立使用时是本文件夹的上一级目录，如 `XX项目/`）：`输入文件/` 放料、`过程文件/` 留痕、`成果文件/` 出活，
 `工作区参数.json` 和 `.cardo/`（虚拟环境）也在那里。换项目时把技能文件夹整体拷走即可，不会带走任何项目数据。
 
 在项目文件夹里执行命令（`--workspace` 可显式指定别的工作区）：
 
 ```powershell
-python CardoOSGB\开工.py
+python "<技能目录>/scripts/cardo.py"
 ```
 包内自带转换工具 `Skills/02-工具探测/tools/fanvanzh-3dtiles/v0.4/3dtile.exe`（v0.4，勿替换）。
 
@@ -63,7 +72,7 @@ python CardoOSGB\开工.py
 每次运行都会刷新。想一项一项确认，就跑：
 
 ```text
-python CardoOSGB\开工.py --intake
+python "<技能目录>/scripts/cardo.py" --intake
 ```
 
 它会一项一项问（回车=已放好，s=暂时没有，q=退出），并在你确认后**立即复扫**，没真的放进去不会放行；必需项缺失则停在这一步。
@@ -71,7 +80,7 @@ python CardoOSGB\开工.py --intake
 **如果模型包还在拷贝（几个 GB 要几分钟），加 `--wait` 让它等你**：
 
 ```text
-python CardoOSGB\开工.py --wait 600
+python "<技能目录>/scripts/cardo.py" --wait 600
 ```
 
 每 5 秒复扫一次 `输入文件/01-模型包/`，一放进去就自动继续校验与开工，不用你再敲一遍命令。
@@ -85,7 +94,7 @@ python CardoOSGB\开工.py --wait 600
 2. **问用户**（一次只问一项）：把绝对路径和「怎么准备」原样转述给用户，例如
    「请把 OSGB 模型包 zip 放到 `C:\path\to\workspace\输入文件\01-模型包\`。整个 OSGB 目录打成 zip，
    解压后只有一个根目录且含 metadata.xml，坐标系 EPSG:4544。」
-3. **等用户放好**：用户放完后重跑 `python CardoOSGB\开工.py`（或用 `--wait 600` 让它自己等）。
+3. **等用户放好**（见上文「交互节奏」）：用户放完后重跑 `python "<技能目录>/scripts/cardo.py"`（或用 `--wait 600` 让它自己等）。
 4. **用户说没有**：这就是硬缺料。模型包**不能联网补、不能替代、不能伪造**
    —— 记为缺口，停下并说明「缺 OSGB 模型包，无法出成果」，不要拿别的模型顶替。
 
@@ -99,9 +108,9 @@ python CardoOSGB\开工.py --wait 600
 2. **开工**：
 
 ```powershell
-python CardoOSGB\开工.py --to 02      # 冒烟：只解包与工具探测，不转换
-python CardoOSGB\开工.py              # 全链 01→16（反演 + 场地要素 + 扩展指标 + 能力边界表）
-python CardoOSGB\开工.py --check      # 只校验模型包与结构，不跑流水线
+python "<技能目录>/scripts/cardo.py" --to 02      # 冒烟：只解包与工具探测，不转换
+python "<技能目录>/scripts/cardo.py"              # 全链 01→16（反演 + 场地要素 + 扩展指标 + 能力边界表）
+python "<技能目录>/scripts/cardo.py" --check      # 只校验模型包与结构，不跑流水线
 ```
 
 `开工.py` 每次运行都会：依赖自检（8 个包，首次较慢；缺就建 `.cardo/venv-osgb`，按 阿里云 → 清华 → USTC → 官方源 回退安装）
@@ -200,7 +209,7 @@ SRS 不合规时**不要硬跑**：告诉用户当前 SRS 是什么、本链只�
 注册表改了要同步随包那份：
 
 ```bash
-python Skills/00-Cardo低空解析总控/scripts/export_algo_table.py --workspace . --package
+python "<技能目录>/Skills/00-Cardo低空解析总控/scripts/export_algo_table.py" --workspace "<工作区>" --package
 ```
 
 ## 进阶（可选）
@@ -213,13 +222,13 @@ python Skills/00-Cardo低空解析总控/scripts/export_algo_table.py --workspac
 只想跑主链不要扩展指标：
 
 ```powershell
-python CardoOSGB\开工.py --to 08
+python "<技能目录>/scripts/cardo.py" --to 08
 ```
 
 单独重跑某一步：
 
 ```powershell
-python CardoOSGB\开工.py --from 09 --to 13
+python "<技能目录>/scripts/cardo.py" --from 09 --to 13
 ```
 
 ## 纪律

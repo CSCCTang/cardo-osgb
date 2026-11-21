@@ -3,9 +3,9 @@
 """02 · 按清单重建工具：把 `tools/` 里的自包含工具从本地源/压缩包恢复，并立刻校验。
 
 用法（工作区根执行）：
-    python Skills/02-工具探测/scripts/fetch_tools.py --from <本机源目录>        # 从解压好的目录复制
-    python Skills/02-工具探测/scripts/fetch_tools.py --url <zip 路径或 http(s) 地址>
-    python Skills/02-工具探测/scripts/fetch_tools.py --verify-only             # 只校验现有 tools/
+    python <技能目录>/Skills/02-工具探测/scripts/fetch_tools.py --from <本机源目录>        # 从解压好的目录复制
+    python <技能目录>/Skills/02-工具探测/scripts/fetch_tools.py --url <zip 路径或 http(s) 地址>
+    python <技能目录>/Skills/02-工具探测/scripts/fetch_tools.py --verify-only             # 只校验现有 tools/
 
 `--from` 接受两种源：① 含 `v0.4/` 的 fanvanzh-3dtiles 目录；② 直接是 `v0.4/` 目录。
 `--url` 支持本地 zip 路径与 http(s)（需联网；解压后定位含 3dtile.exe 的版本目录）。

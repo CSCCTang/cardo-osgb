@@ -6,8 +6,8 @@
 参数原样透传 `--workspace` / `--force`；`--only` 只跑一个算法。
 
 用法（工作区根）：
-    python Skills/12-屋顶与立面/scripts/run_roof_facade.py --workspace .
-    python Skills/12-屋顶与立面/scripts/run_roof_facade.py --workspace . --only roof --force
+    python <技能目录>/Skills/12-屋顶与立面/scripts/run_roof_facade.py --workspace .
+    python <技能目录>/Skills/12-屋顶与立面/scripts/run_roof_facade.py --workspace . --only roof --force
 退出码：全部子算法 exit 0 → 0；任一非 0 → 1。
 """
 from __future__ import annotations

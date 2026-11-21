@@ -18,7 +18,7 @@
     vector-polygonize.json / .md / _done；_patches/vector-polygonize.json
 
 用法（工作区根）：
-    python Skills/13-矢量增强/scripts/vector_polygonize.py --workspace .
+    python <技能目录>/Skills/13-矢量增强/scripts/vector_polygonize.py --workspace .
 退出码：0 可用；2 缺输入；3 产出但不可用；4 产物已存在未给 --force。
 """
 from __future__ import annotations

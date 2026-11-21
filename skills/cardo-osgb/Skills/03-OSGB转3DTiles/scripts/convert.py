@@ -221,7 +221,7 @@ def tool_missing(args, tools_dir: str | None) -> int:
     print("[03]   需要的版本：v0.4（目录名必须为 v0.4）")
     print("[03]   怎么恢复：安装包不完整，重新安装本插件；或设 CARDO_OSGB_TOOLS 指向自备的 "
           "fanvanzh-3dtiles 目录（上游 %s）" % TOOL_UPSTREAM)
-    print("[03]   恢复后重跑：python Skills/00-Cardo低空解析总控/scripts/pipeline.py "
+    print("[03]   恢复后重跑：python <技能目录>/Skills/00-Cardo低空解析总控/scripts/pipeline.py "
           "run --workspace . --from 03")
     print("[03] 转换日志（标记 missing-tool）：%s" % os.path.join(args.out, "转换日志.json"))
     return 4

@@ -9,9 +9,9 @@
 `--workspace` / `--force` 原样透传给子脚本；`--only` 只跑指定算法（逗号分隔）。
 
 用法（工作区根）：
-    python Skills/11-几何增强/scripts/run_enhance.py --workspace .
-    python Skills/11-几何增强/scripts/run_enhance.py --workspace . --only pc.classify --force
-    python Skills/11-几何增强/scripts/run_enhance.py --workspace . --skip-missing
+    python <技能目录>/Skills/11-几何增强/scripts/run_enhance.py --workspace .
+    python <技能目录>/Skills/11-几何增强/scripts/run_enhance.py --workspace . --only pc.classify --force
+    python <技能目录>/Skills/11-几何增强/scripts/run_enhance.py --workspace . --skip-missing
 
 退出码：全部子算法 0 → 0；任一非 0 → 1；参数/工作区不合法 → 2。
 """

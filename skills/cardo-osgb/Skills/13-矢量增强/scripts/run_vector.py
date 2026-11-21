@@ -6,9 +6,9 @@
 一次产出全部 13 的成果；任一非 0 即整体失败（返回 1）。
 
 用法（工作区根）：
-    python Skills/13-矢量增强/scripts/run_vector.py --workspace .
-    python Skills/13-矢量增强/scripts/run_vector.py --workspace . --only vector.polygonize
-    python Skills/13-矢量增强/scripts/run_vector.py --workspace . --only vector-gpkg --force
+    python <技能目录>/Skills/13-矢量增强/scripts/run_vector.py --workspace .
+    python <技能目录>/Skills/13-矢量增强/scripts/run_vector.py --workspace . --only vector.polygonize
+    python <技能目录>/Skills/13-矢量增强/scripts/run_vector.py --workspace . --only vector-gpkg --force
 
 退出码：全部成功 0；否则 1（子脚本各自的 0/2/3/4 会原样打印）。
 """
