@@ -11,6 +11,11 @@
   2. 用 PyMuPDF 逐页统计可读字符数、图片数、最小字号；
   3. 出现「0 字符 且 0 图」的页 → exit 3；页数超上限、字号低于下限同样 exit 3。
 
+**总预算与进程清理**：渲染级整轮默认 600 s 封顶（单目标 180 s），预算用尽后其余目标
+转结构级并如实标「未执行」；每轮渲染后清掉本次拉起的 Word/Excel/WPS 实例
+（旧版 8 个目标各 600 s，最坏 80 分钟，跑完还残留进程）。
+**只装 WPS 时**直接走结构级：WPS 抢占 Word/Excel 的 ProgID 后 COM 导出常挂到超时。
+
 **分层降级（不依赖 Office 也能跑）**
 
 渲染级检查要靠 Word/Excel 的 COM。客户的机器上不一定有 Office，也不该被要求
@@ -51,6 +56,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime
 
 sys.dont_write_bytecode = True
@@ -80,14 +86,53 @@ def _progid_exists(progid: str) -> bool:
     return False
 
 
-def probe_office() -> dict:
-    """探测本机有没有 Word / Excel 的 COM。
+def _progid_server(progid: str) -> str:
+    """ProgID 的 COM 服务端路径（LocalServer32）。拿不到返回空串。"""
+    try:
+        import winreg
+    except ImportError:
+        return ""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, progid + r"\CLSID") as key:
+            clsid = str(winreg.QueryValueEx(key, "")[0]).strip()
+    except OSError:
+        return ""
+    if not clsid:
+        return ""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT,
+                            r"CLSID\\" + clsid + r"\LocalServer32") as key:
+            return str(winreg.QueryValueEx(key, "")[0]).strip().strip('"')
+    except OSError:
+        return ""
 
-    返回 {"word": bool, "excel": bool}。没装 Office（或只剩 WPS 且没注册
-    Word/Excel 这两个 ProgID）就是 False——那就走结构级自检。
+
+def _office_backend(progid: str) -> str:
+    """返回 "office" / "wps" / ""：同名 ProgID 到底是谁注册的。
+
+    WPS 会抢占 Word.Application / Excel.Application 这两个 ProgID，看起来「装了 Office」，
+    真去导出 PDF 却常挂到超时（实测 8 个目标各 600 s）。识别出服务端是 WPS 就不走 COM，
+    直接结构级自检——保证强度按文档降一档，但不再白等两小时。
     """
-    return {"word": _progid_exists("Word.Application"),
-            "excel": _progid_exists("Excel.Application")}
+    server = _progid_server(progid).lower()
+    if not server:
+        return ""
+    return "wps" if ("wps" in server or "kingsoft" in server) else "office"
+
+
+def probe_office() -> dict:
+    """探测本机 Office COM 的真实归属。
+
+    返回 {"word", "excel", "wps", "wpsOnly"}：word/excel 为 True 只表示
+    「真正的 Word/Excel 注册了 COM」；WPS 抢占的 ProgID 不算，wpsOnly 为 True 时
+    整轮直接走结构级。
+    """
+    w = _office_backend("Word.Application")
+    e = _office_backend("Excel.Application")
+    wps = bool(w == "wps" or e == "wps"
+               or _progid_exists("KWPS.Application") or _progid_exists("WPS.Application"))
+    return {"word": w == "office", "excel": e == "office", "wps": wps,
+            "wpsOnly": wps and w != "office" and e != "office"}
 
 
 # ---------------------------------------------------------------- 渲染（Office COM）
@@ -170,6 +215,37 @@ def render_pdf(src: str, dst: str, sheet: str = "", timeout: int = 600) -> tuple
         detail = (proc.stderr or proc.stdout or "").strip().replace("\n", " ")[:300]
         return False, f"Office 导出未产出 PDF（exit {proc.returncode}）：{detail}"
     return True, ""
+
+
+OFFICE_PROCS = {"WINWORD.EXE", "EXCEL.EXE", "WPS.EXE", "ET.EXE", "WPP.EXE"}
+
+
+def _office_pids() -> set:
+    """当前在跑的 Word/Excel/WPS 进程号。"""
+    try:
+        proc = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True,
+                              text=True, encoding="utf-8", errors="replace", timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    pids = set()
+    for line in (proc.stdout or "").splitlines():
+        parts = [part.strip().strip('"') for part in line.split(",")]
+        if len(parts) >= 2 and parts[0].upper() in OFFICE_PROCS and parts[1].isdigit():
+            pids.add(int(parts[1]))
+    return pids
+
+
+def _kill_pids(pids: set) -> list:
+    """结束指定进程；只杀本脚本运行前后新增的那些（自己拉起的实例）。"""
+    killed = []
+    for pid in sorted(pids):
+        try:
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
+                           capture_output=True, timeout=20)
+            killed.append(pid)
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return killed
 
 
 # ---------------------------------------------------------------- 逐页统计（渲染级）
@@ -443,13 +519,18 @@ def _label(target: dict) -> str:
 
 
 def run(specs: list[str], out_path: str = "", workdir: str = "",
-        keep_pdf: str = "", min_font: float = 0.0) -> tuple[int, list, dict]:
+        keep_pdf: str = "", min_font: float = 0.0,
+        budget: float = 600.0) -> tuple[int, list, dict]:
     """逐目标渲染 + 审计。返回 (退出码, 问题列表, 报告)。
 
     min_font：全局字号下限（所有目标都适用，含逐页表格正文/表注/页脚）。
     目标自带 `!n` 时取两者较大的那个，避免某条 spec 写小了就绕过底线。
 
-    降级：没有 Office COM（或渲染失败）时，改为结构级自检——
+    budget：整轮渲染的总时长上限（秒，默认 600）。旧版每个目标各给 600 s、
+    8 个目标最坏 80 分钟；现在总预算用尽后其余目标直接转结构级并如实标「未执行」。
+    渲染级仍按单目标 180 s 封顶，避免一个卡死的目标吃掉全部预算。
+
+    降级：没有 Office COM（或渲染失败、或只装了 WPS）时，改为结构级自检——
     空白页前兆与字号底线照旧卡，页数上限与逐页字符统计如实标「未执行」。
     """
     problems, targets = [], []
@@ -460,6 +541,10 @@ def run(specs: list[str], out_path: str = "", workdir: str = "",
     missing = False
     office = probe_office()
     modes: set[str] = set()
+    deadline = time.time() + max(60.0, float(budget))
+    budget_hit = False
+    procs_before = _office_pids()
+    killed_pids: list = []
 
     for spec in specs:
         target = parse_target(spec)
@@ -476,9 +561,20 @@ def run(specs: list[str], out_path: str = "", workdir: str = "",
         # ---------- 第一档：渲染级（有 Office COM 且渲染成功）----------
         render_ok = False
         render_error = ""
-        if need_office:
-            pdf = os.path.join(temp_dir, re.sub(r"[^\w.\-]+", "_", label) + ".pdf")
-            render_ok, render_error = render_pdf(target["path"], pdf, target["sheet"])
+        if office.get("wpsOnly"):
+            render_error = "本机只有 WPS（未注册真正的 Word/Excel COM），直接走结构级"
+        elif need_office:
+            remaining = deadline - time.time()
+            if remaining <= 10:
+                budget_hit = True
+                render_error = ("自检总预算 %d 秒已用尽，未做渲染级检查" % budget)
+            else:
+                pdf = os.path.join(temp_dir, re.sub(r"[^\w.\-]+", "_", label) + ".pdf")
+                render_ok, render_error = render_pdf(
+                    target["path"], pdf, target["sheet"],
+                    timeout=int(min(180, max(10, remaining))))
+                # 自己拉起的 Word/Excel 实例可能没退干净：每轮立刻清掉，别留到跑完
+                killed_pids += _kill_pids(_office_pids() - procs_before - set(killed_pids))
         else:
             render_error = ("本机未注册 " + ("Word.Application" if is_docx else "Excel.Application")
                             + "，未做渲染级检查")
@@ -557,6 +653,14 @@ def run(specs: list[str], out_path: str = "", workdir: str = "",
 
     if not workdir:
         shutil.rmtree(temp_dir, ignore_errors=True)
+    # 收尾再清一次：确保自检结束后不残留 Word/WPS 进程（实测曾残留 2 个）
+    killed_pids += _kill_pids(_office_pids() - procs_before - set(killed_pids))
+    if budget_hit:
+        warnings.append("渲染级自检总预算 %d 秒用尽，其后目标改用结构级（页数与逐页字符统计未执行）"
+                        % budget)
+    if killed_pids:
+        warnings.append("已结束本次渲染拉起的 Office/WPS 进程：PID "
+                        + "、".join(str(p) for p in killed_pids))
 
     code = 2 if missing else (3 if problems else 0)
     mode = "render" if modes == {"render"} else ("structural" if modes == {"structural"} else "mixed")
@@ -569,6 +673,9 @@ def run(specs: list[str], out_path: str = "", workdir: str = "",
         "exitCode": code,
         "mode": mode,
         "officeProbe": office,
+        "budgetSeconds": int(budget),
+        "budgetExhausted": bool(budget_hit),
+        "renderProcessesKilled": killed_pids,
         "rule": "逐页统计可读字符数与图片数：字符 0 且图片 0 即为空白页",
         "modeNote": ("渲染级：Office COM 可用，逐页实测" if mode == "render" else
                      "结构级：无 Office COM，改从文件结构判定空白页前兆与字号（页数与逐页字符统计未执行）"
@@ -596,9 +703,11 @@ def main(argv=None) -> int:
     ap.add_argument("--keep-pdf", default="", help="保留渲染出的 PDF 到该目录（排查用）")
     ap.add_argument("--min-font", type=float, default=0.0,
                     help="全局字号下限（pt）：任何目标的最小字号低于它即 exit 3")
+    ap.add_argument("--budget", type=float, default=600.0,
+                    help="渲染级自检总时长上限（秒，默认 600）：用尽后其余目标转结构级")
     args = ap.parse_args(argv)
     code, problems, report = run(args.specs, args.out, keep_pdf=args.keep_pdf,
-                                 min_font=args.min_font)
+                                 min_font=args.min_font, budget=args.budget)
     for item in report["targets"]:
         label = os.path.basename(item["path"]) + (f"::{item['sheet']}" if item.get("sheet") else "")
         if item.get("pages") is None:

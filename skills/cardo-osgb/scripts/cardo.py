@@ -28,7 +28,7 @@ from pathlib import Path
 PACKAGE = "CardoOSGB"
 ENTRY = "开工.py"
 NAME = "cardo-osgb"
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 # 工作区目录架构与用途：与包内 开工.py 的 DIRS 对齐；只建目录，不写内容
 DIR_GUIDE = [('输入文件', '放原始材料'), ('输入文件/01-模型包', 'OSGB 模型包 zip 放这里（整个 OSGB 目录打成一个 zip，含 metadata.xml 与 Data\\）'), ('过程文件', '流水线中间件与运行报告，跑完之前不要动'), ('成果文件', '最终交付件，跑完在这里取'), ('记忆与规则', '本项目的规则与记忆，跨会话复用')]
 DIRS = [rel for rel, _ in DIR_GUIDE]
@@ -332,7 +332,14 @@ def main(argv):
         print("请把 OSGB 模型包 zip 放到：%s" % os.path.join(ws, "输入文件", "01-模型包"), flush=True)
         print("要求：整个 OSGB 目录打成一个 zip，解压后单一根目录且含 metadata.xml，坐标系 EPSG:4544。", flush=True)
         print("放好后回一句「放好了」，我再一口气跑完；我不轮询、不后台守候、不自动扫描目录。", flush=True)
-        return 0
+        if pkg is None:
+            return 3
+        # 让 开工.py 落《放料清单.md》《待补料.json》并返回 3——文档承诺的「缺料就有清单」
+        # 不能等开工才发生。--intake-only 只建目录、不装依赖、不跑流水线。
+        env = dict(os.environ)
+        env.update({"PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1"})
+        return subprocess.call([sys.executable, str(pkg / ENTRY), "--workspace", str(ws),
+                                "--intake-only"], cwd=str(ws), env=env)
 
     if pkg is None:
         return doctor()

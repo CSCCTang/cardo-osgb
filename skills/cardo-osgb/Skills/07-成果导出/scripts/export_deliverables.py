@@ -289,6 +289,10 @@ def _book_text(book) -> str:
     return "\n".join(parts)
 
 
+# 成品版「范围参数」过滤：带内部指引/文档名/调研出处的值不进成品（业主看不懂，也违反成品版口径）
+_PARAM_REF = re.compile(r"《[^》]*》|过程文件|溯源|调研报告|\.md\b|\.json\b")
+
+
 def _cell_value(value):
     """把 list/dict 参数压成可写单元格的字符串（旧实现只处理 list，dict 直写会崩）。"""
     if isinstance(value, list):
@@ -1891,16 +1895,35 @@ def build_workbook(ind: dict, path: str, ext: dict | None = None,
                    "各指标区间取这些行 × 层高 2.8 / 3.3 m 的最小值与最大值，"
                    "可在本表逐格复核（如建筑密度区间上限 62.3% 来自全局 P5 一行）。")])
 
-    if annotated:
-        sheet = book.create_sheet("范围参数")
-        sheet.append(["参数", "值"])
-        for key, value in ind["params"].items():
-            sheet.append([R.PARAMS_CN.get(key, key), _cell_value(value)])
-        if site and site.get("params"):
-            sheet.append([])
-            sheet.append(["— 场地要素判据（第 14 步）—", ""])
-            for key, value in site["params"].items():
-                sheet.append([R.PARAMS_CN.get(key, key), _cell_value(value)])
+    # 「范围参数」成品版也要有：文档写的是成品版 6 张 sheet（导览/指标/场地要素明细/
+    # 敏感性/范围参数/术语）。旧实现只在溯源版建这张，导致成品版只有 5 张、与文档对不上；
+    # 口径同源——都取 ind["params"]（+ 场地要素判据），只是成品版只列可读标量。
+    def _param_cell(value, clean: bool):
+        """成品版只收标量；字典/长文本/带《…》等内部指引的值属审计细节，留在溯源版。"""
+        if not clean:
+            return _cell_value(value)
+        if isinstance(value, bool) or isinstance(value, (int, float)):
+            return value
+        text = str(value)
+        if isinstance(value, (dict, list)) or len(text) > 60 or _PARAM_REF.search(text):
+            return None
+        return text
+
+    sheet = book.create_sheet("范围参数")
+    sheet.append(["参数", "值"])
+    for key, value in ind["params"].items():
+        cell = _param_cell(value, not annotated)
+        if cell is None:
+            continue
+        sheet.append([R.PARAMS_CN.get(key, key), cell])
+    if site and site.get("params"):
+        sheet.append([])
+        sheet.append(["— 场地要素判据%s —" % ("（第 14 步）" if annotated else ""), ""])
+        for key, value in site["params"].items():
+            cell = _param_cell(value, not annotated)
+            if cell is None:
+                continue
+            sheet.append([R.PARAMS_CN.get(key, key), cell])
 
     # 原名「缺项」。正文与体检报告里对应章节都叫「边界与说明」，
     # 成果名与引用名必须一致，不留"名字 A、指向 B"。缺口只在溯源版集中交代。
@@ -2551,16 +2574,48 @@ def sha256_of(path: str) -> str:
     return h.hexdigest()
 
 
+def _commit_stage(stage_root: str, out_dir: str) -> tuple[bool, str]:
+    """把 staging 里的成果一次性提交到成果目录。
+
+    浏览包整目录先提交（它最容易被开着浏览页的进程锁住），再逐个 os.replace 文件。
+    浏览包替换失败时，其余成果照常提交并返回 False + 说明，由日志标 partial；
+    不会留下「文档新、浏览包旧却没有说明」的状态。
+    """
+    problems = ""
+    browse_rel = os.path.join("成品版", "模型浏览")
+    src = os.path.join(stage_root, browse_rel)
+    dst = os.path.join(out_dir, browse_rel)
+    if os.path.isdir(src):
+        try:
+            if os.path.isdir(dst):
+                shutil.rmtree(dst)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.move(src, dst)
+        except OSError as exc:
+            problems = ("旧浏览包替换失败（%s）；文档与指标已更新，浏览包保持上一轮，"
+                        "运行 Start.bat stop 后 --from 07 重跑可补齐" % exc)
+    for base, _dirs, names in os.walk(stage_root):
+        for name in names:
+            path = os.path.join(base, name)
+            target = os.path.join(out_dir, os.path.relpath(path, stage_root))
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            os.replace(path, target)
+    shutil.rmtree(stage_root, ignore_errors=True)
+    return (not problems), problems
+
+
 def write_export_log(args, targets: list, model: dict | None, ind: dict | None,
                      ext: dict | None, mat: dict | None, site: dict | None,
                      status: str = "ok", stage: str = "", exit_code: int = 0,
                      problems: list | None = None, audit: dict | None = None,
-                     browse: dict | None = None) -> None:
+                     browse: dict | None = None, committed: bool = True,
+                     commit_note: str = "") -> None:
     """写 过程文件/07-成果导出/导出日志.json（成功与失败都写）。
 
     记录：① 本次运行结论（status / stage / exitCode / problems）——失败时写明
-    卡在哪一步、退出码多少、为什么；② 四件成果**当时**的落盘清单（在不在、
-    字节数、sha256）；③ 输入源指纹；④ 空白页自检的档位与未执行项。
+    卡在哪一步、退出码多少、为什么；② 成果**当时**的落盘清单（在不在、
+    字节数、sha256）；③ 输入源指纹；④ 空白页自检的档位与未执行项；
+    ⑤ 提交方式（staging 一次提交 / 未提交，成果仍是上一轮）。
 
     旧版只在成功路径写日志，07 一失败日志就停在上一次成功的那版上，
     事后拿它对账会把旧成果当成这次的——留痕反而误导。
@@ -2599,6 +2654,9 @@ def write_export_log(args, targets: list, model: dict | None, ind: dict | None,
         "status": status,
         "stage": stage,
         "exitCode": exit_code,
+        "partial": (not committed) or bool((browse or {}).get("skipped")),
+        "commit": {"committed": bool(committed), "note": commit_note,
+                   "noteIfFailed": "本轮未提交：成果文件保持上一轮，避免文档新、浏览包旧的混合状态"},
         "problems": list(problems or []),
         "deliverables": deliverables,
         "deliverableCount": sum(1 for item in deliverables if item["present"]),
@@ -2660,7 +2718,12 @@ def main() -> int:
     _PROJECT_NAME = config_project_name(workspace)
 
     out_dir = os.path.abspath(args.out)
-    targets = [os.path.join(out_dir, rel) for rel in REL_TARGETS]
+    # staging：本轮全部成果先写进 .07-staging，最后一次性提交。
+    # 旧版直接就地覆盖 docx/xlsx，失败时会留下「文档是新的、浏览包是旧的」混合状态。
+    final_targets = [os.path.join(out_dir, rel) for rel in REL_TARGETS]
+    stage_root = os.path.join(out_dir, ".07-staging")
+    shutil.rmtree(stage_root, ignore_errors=True)
+    targets = [os.path.join(stage_root, rel) for rel in REL_TARGETS]
     health_clean, health_ann = targets[0], targets[1]
     ind_clean, ind_ann = targets[2], targets[3]
     book_clean, book_ann = targets[4], targets[5]
@@ -2693,18 +2756,30 @@ def main() -> int:
 
     def fail(stage: str, message: str, code: int = 3,
              problems: list | None = None) -> int:
-        """失败也留痕：卡在哪一步、退出码、原因、当时已落盘的文件与哈希。"""
+        """失败也留痕：卡在哪一步、退出码、原因、当时已落盘的文件与哈希。
+
+        staging 未提交 → 成果目录保持上一轮（不会出现文档新、浏览包旧的混合状态）；
+        日志里写明 committed=false / partial=true，避免把旧成果当成这次的。
+        """
         print(f"[07] {message}", file=sys.stderr)
-        write_export_log(args, targets, model, ind, ext, mat, site,
+        shutil.rmtree(stage_root, ignore_errors=True)
+        write_export_log(args, final_targets, model, ind, ext, mat, site,
                          status="failed", stage=stage, exit_code=code,
-                         problems=problems or [message])
+                         problems=problems or [message], committed=False,
+                         commit_note="staging 已丢弃，成果文件保持上一轮")
         return code
 
     for label, path in (("model", args.model), ("health", args.health),
                         ("indicators", args.indicators)):
         if not os.path.isfile(path):
             return fail("输入缺失", f"缺输入 {label}：{path}", 2)
-    model, health, ind = read_json(args.model), read_json(args.health), read_json(args.indicators)
+    try:
+        model = read_json(args.model)
+        health = read_json(args.health)
+        ind = read_json(args.indicators)
+    except (OSError, ValueError) as exc:
+        # 输入 JSON 损坏属「料不对」，给 exit 3 + 可照做的提示，不让 traceback 直冲用户
+        return fail("输入解析", f"输入 JSON 读不出来：{type(exc).__name__}: {exc}", 3)
     if health.get("schema") != "cardo/lowair-health/v1":
         return fail("输入缺失", "体检.json schema 不符", 2)
     if ind.get("schema") != "cardo/lowair-indicators/v1":
@@ -2733,11 +2808,24 @@ def main() -> int:
             ext = None
 
     os.makedirs(out_dir, exist_ok=True)
-    # 先删旧再生成：失败不留下"上次的成果"；顺带清掉旧命名（扁平四件）残留
+    # 07 开跑前就预检「成品版/模型浏览」占用：自己拉起的旧服务先结束；
+    # 结束不了就记下来，稍后跳过浏览包重建并留痕——不等到最后一刻卡 90 秒再中断全链。
+    browse_locked_note = ""
+    try:
+        import build_browse_package as _browse_precheck
+        _ok, _note = _browse_precheck.ensure_replaceable(
+            os.path.join(out_dir, "成品版", "模型浏览"))
+        if _note:
+            print("[07] 模型浏览预检：" + _note)
+        if not _ok:
+            browse_locked_note = _note
+    except ImportError:
+        pass
+    # 只清旧命名（扁平四件）残留；本轮正式成果走 staging，提交前不动旧文件
     legacy = [os.path.join(out_dir, name) for name in
               ("模型体检报告.docx", "指标说明.docx", "现状指标.xlsx",
                "现状指标依据对照表.xlsx")]
-    for stale in targets + legacy:
+    for stale in legacy:
         if os.path.isfile(stale):
             os.remove(stale)
 
@@ -2953,48 +3041,92 @@ def main() -> int:
 
     # ---- 模型浏览：自足三维/二维浏览目录（一成果一子目录）----
     # 数据全部取自本轮 OSGB 产物；缺必填项在这里硬失败，不静默降级。
-    # 例外：浏览引擎（assets/viewer）不随仓库分发，缺引擎就跳过这一件成果并留痕，
-    # 其余成果照出——否则「没下载 viewer」会变成整条链跑不完。
+    # 三种跳过都要留痕（写 模型浏览_未生成.json，08 据此不把浏览包当必需件）：
+    #   VIEWER_MISSING  包内缺浏览引擎（安装包不完整）
+    #   DEFERRED        全链会在 14 之后重跑 07，浏览包留到那次一并构建（省一次 99 MB 重建）
+    #   BROWSE_LOCKED   旧浏览包被别的进程占用，替换不了（不让一件可选成果卡死全链）
     try:
         import build_browse_package
     except ImportError as exc:
         return fail("模型浏览", f"打包模块不可用：{type(exc).__name__}: {exc}")
     viewer_asset = getattr(build_browse_package, "ASSET_DEFAULT", "")
     browse_info = None
-    if not (viewer_asset and os.path.isdir(viewer_asset)):
+
+    def _browse_skip(reason: str, what: str, recover: str, effect: str) -> dict:
         marker = os.path.join("过程文件", "07-成果导出", "模型浏览_未生成.json")
         os.makedirs(os.path.dirname(marker), exist_ok=True)
         with open(marker, "w", encoding="utf-8", newline="\n") as fh:
             json.dump({
                 "schema": "cardo/lowair-browse-skip/v1",
-                "skipped": True, "reason": "VIEWER_MISSING",
-                "what": "模型浏览引擎（assets/viewer，随包分发）",
-                "expected": "skills/cardo-osgb/assets/viewer/tool/caddy.exe",
-                "recover": "安装包不完整：重新安装本插件（Release tgz 或 github 安装）",
-                "effect": "本次只跳过「成果文件/成品版/模型浏览」；报告、指标、说明照常出",
+                "skipped": True, "reason": reason, "what": what,
+                "recover": recover, "effect": effect,
             }, fh, ensure_ascii=False, indent=2)
             fh.write("\n")
+        return {"skipped": True, "reason": reason, "note": effect}
+
+    if not (viewer_asset and os.path.isdir(viewer_asset)):
         print("[07] 跳过模型浏览：包内缺浏览引擎 assets/viewer（安装包不完整，其余成果照出）。")
         print("[07]   期望：skills/cardo-osgb/assets/viewer/tool/caddy.exe")
         print("[07]   处置：重新安装本插件（Release tgz 或 github 安装）后 --from 07 重跑")
-        browse_info = {"skipped": True, "reason": "VIEWER_MISSING",
-                       "note": "缺 assets/viewer，已按 README 指引跳过"}
+        browse_info = _browse_skip(
+            "VIEWER_MISSING", "模型浏览引擎（assets/viewer，随包分发）",
+            "安装包不完整：重新安装本插件（Release tgz 或 github 安装）",
+            "本次只跳过「成果文件/成品版/模型浏览」；报告、指标、说明照常出")
+    elif os.environ.get("CARDO_DEFER_BROWSE") == "1":
+        print("[07] 模型浏览：延后到 14 之后那次 07 重跑一并构建（本轮先出文档，省一次浏览包重建）。")
+        browse_info = _browse_skip(
+            "DEFERRED", "模型浏览（本链稍后会重跑 07）",
+            "无需处置：全链会在扩展指标并入后自动重跑 07 并生成浏览包",
+            "本次先跳过；重跑 07 时补上")
     else:
-        try:
-            browse_info = build_browse_package.build(
-                workspace, args.out, model_path=args.model, indicators_path=args.indicators)
-        except build_browse_package.BuildError as exc:
-            return fail("模型浏览", str(exc))
-        except (OSError, ValueError, KeyError, TypeError) as exc:
-            return fail("模型浏览", f"打包失败：{type(exc).__name__}: {exc}")
+        reus = build_browse_package.reusable(
+            workspace, out_dir, viewer_asset, args.model, args.indicators)
+        if reus:
+            print(f"[07] 模型浏览：输入未变（指纹 {reus['fingerprint']}），复用上次构建"
+                  f"（{reus['files']} 文件 / {(reus['bytes'] or 0) / 1048576.0:.1f} MB），本次不重建。")
+            browse_info = reus
+        elif browse_locked_note:
+            print(f"[07] 跳过模型浏览：{browse_locked_note}", file=sys.stderr)
+            browse_info = _browse_skip(
+                "BROWSE_LOCKED", "旧版模型浏览目录正被占用，无法替换",
+                "关闭浏览页/服务窗口，或运行 成果文件/成品版/模型浏览/Start.bat stop 后 "
+                "--from 07 重跑",
+                "本次文档照常更新；浏览包保持上一轮（未重建）")
+        else:
+            try:
+                browse_info = build_browse_package.build(
+                    workspace, stage_root, model_path=args.model,
+                    indicators_path=args.indicators)
+            except build_browse_package.BrowseLocked as exc:
+                print("[07] 跳过模型浏览：%s" % exc, file=sys.stderr)
+                browse_info = _browse_skip(
+                    "BROWSE_LOCKED", "旧版模型浏览目录正被占用，无法替换",
+                    "关闭浏览页/服务窗口，或运行 成果文件/成品版/模型浏览/Start.bat stop 后 "
+                    "--from 07 重跑",
+                    "本次文档照常更新；浏览包保持上一轮（未重建）")
+            except build_browse_package.BuildError as exc:
+                return fail("模型浏览", str(exc))
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                return fail("模型浏览", f"打包失败：{type(exc).__name__}: {exc}")
 
-    # ---- 导出留痕：四件成果的哈希 + 运行结论 + 输入源指纹 ----
+    # 上一轮跳过、本轮补上了：删掉跳过标记，别让 08 继续按「已跳过」放行浏览包核对
+    if not browse_info.get("skipped"):
+        stale_marker = os.path.join("过程文件", "07-成果导出", "模型浏览_未生成.json")
+        if os.path.isfile(stale_marker):
+            os.remove(stale_marker)
+
+    # ---- 一次性提交：staging → 成果目录（浏览包整目录先提交，最容易被占用）----
+    commit_ok, commit_note = _commit_stage(stage_root, out_dir)
+    if not commit_ok:
+        print(f"[07] {commit_note}", file=sys.stderr)
+
+    # ---- 导出留痕：成果哈希 + 运行结论 + 输入源指纹 ----
     # 之前 07 步的 product 是 None，过程文件/ 下没有 07-成果导出/ 目录，
     # 成果写完就没痕了：事后只能靠文件时间戳猜「这批成果是哪次跑出来的」。
     # 这份日志让「成果 ↔ 输入 ↔ 一次运行」三者可对账。
-    write_export_log(args, targets, model, ind, ext, mat, site,
+    write_export_log(args, final_targets, model, ind, ext, mat, site,
                      status="ok", stage="完成", exit_code=0, audit=guard_report,
-                     browse=browse_info)
+                     browse=browse_info, committed=commit_ok, commit_note=commit_note)
 
     values = {m["id"]: m["value"] for m in ind["metrics"]}
     ext_note = ""
@@ -3020,9 +3152,11 @@ def main() -> int:
           f"{values['building_count']} / 容积率 {values['floor_area_ratio_est']}）"
           f"{ext_note}{mat_note}{site_note}")
     if browse_info.get("skipped"):
-        print("[07] 模型浏览：本次跳过（缺 assets/viewer，见 过程文件/07-成果导出/模型浏览_未生成.json）")
+        print(f"[07] 模型浏览：本次跳过（{browse_info.get('reason')}，见 "
+              f"过程文件/07-成果导出/模型浏览_未生成.json）")
     else:
-        print(f"[07] 模型浏览：{browse_info['dir']}（{browse_info['files']} 文件 / "
+        verb = "复用" if browse_info.get("reused") else "生成"
+        print(f"[07] 模型浏览（{verb}）：{browse_info['dir']}（{browse_info['files']} 文件 / "
               f"{browse_info['bytes'] / 1048576.0:.1f} MB，引擎 {browse_info['engineVersion']}，"
               f"图层 {browse_info['layers']} / 指标 {browse_info['indicators']} / "
               f"图表 {browse_info['charts']}）")

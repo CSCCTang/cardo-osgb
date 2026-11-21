@@ -57,7 +57,7 @@ TOOLS = [
 ]
 # 两件资产（浏览引擎 + 转换器）都随包分发，装完即用；缺了就是安装包不完整，不是「让你去下载」。
 VIEWER_HINT = ("包内缺模型浏览引擎 assets/viewer（安装包不完整）：请重新安装本插件"
-               "（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.3）。")
+               "（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.4）。")
 
 
 def viewer_ready() -> bool:
@@ -834,6 +834,8 @@ def _main(argv=None) -> int:
     ap.add_argument("--workspace", default="", help="工作区根（缺省为技能包所在目录，即上一级）")
     ap.add_argument("--debug", action="store_true",
                     help="出错时打印完整堆栈（默认只给人话提示）")
+    ap.add_argument("--intake-only", action="store_true",
+                    help="只建目录并核对放料，生成 放料清单.md / 待补料.json 后返回（不装依赖、不跑流水线）")
     ap.add_argument("passthrough", nargs=argparse.REMAINDER, help="其余参数原样传给流水线")
     args = ap.parse_args(argv)
 
@@ -846,6 +848,26 @@ def _main(argv=None) -> int:
     global ROOT, WORKSPACE_RESOLVED
     ROOT = resolve_workspace(args.workspace)
     WORKSPACE_RESOLVED = True
+
+    if args.intake_only:
+        # 空工作区首跑：不装依赖、不跑流水线，只建目录 + 落《放料清单.md》《待补料.json》。
+        # 文档承诺「缺料就 exit 3 且生成这两份清单」，启动器在无料时调这里，保证口径一致。
+        say(f"[0/4] 工作区：{ROOT}（只做放料检查，不跑流水线）")
+        made = make_dirs()
+        say(f"[1/4] 目录：{'新建 ' + '、'.join(made) if made else '已就绪'}")
+        rows = intake_scan()
+        ready = sum(1 for item, hits in rows if hits)
+        list_path = write_intake_list(rows)
+        say(f"  放料清单：{norm(list_path.relative_to(ROOT))}（已到位 {ready}/{len(rows)} 项）")
+        blockers, notes = precheck(load_params())
+        for n in notes:
+            say(f"  · {n}")
+        for b in blockers:
+            say(f"  ✗ {b}")
+        pending = write_pending(rows, blockers, notes)
+        say(f"  待补料清单：{norm(pending.relative_to(ROOT))}")
+        return 3 if blockers else 0
+
     if not os.environ.get("CARDO_REEXEC"):
         say(f"[0/4] 工作区：{ROOT}（技能包只读：{SKILL.name}）")
     board = SKILL / "开工看板.html"
@@ -881,7 +903,7 @@ def _main(argv=None) -> int:
         say("")
         say("  [提示] 包内缺模型浏览引擎（assets/viewer）：安装包不完整，07 会跳过「模型浏览」。")
         say(f"    期望：{norm(SKILL / 'assets/viewer/tool/caddy.exe')}")
-        say("    处置：重新安装本插件（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.3）")
+        say("    处置：重新安装本插件（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.4）")
         say("")
     else:
         say(f"      模型浏览引擎：在位（{norm(SKILL / 'assets/viewer')}）")

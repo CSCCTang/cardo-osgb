@@ -517,11 +517,13 @@ def cmd_algos(args) -> int:
     return 0
 
 
-def run_step(args, code: str) -> dict:
+def run_step(args, code: str, extra_env: dict | None = None) -> dict:
     root = os.path.abspath(args.workspace)
     cmd = step_command(args, code, root)
     started = time.time()
     env = step_env(code)
+    if extra_env:
+        env.update(extra_env)
     try:
         proc = subprocess.run(cmd, cwd=root, capture_output=True, text=True,
                               encoding="utf-8", errors="replace", timeout=args.timeout,
@@ -786,11 +788,15 @@ def _run_locked(args, root: str) -> int:
     steps, failed, skipped = [], False, []
     failed_code, failed_raw = "", 0
     executed = set()          # 已跑过的步骤号（幂等判断用）
+    # 07 在 14 之后一定要重跑一次（扩展指标要并入成果）。若本次范围里还有 14，
+    # 就让首跑先别建 99 MB 浏览包，留到重跑时按最终输入建一次——省一次等量重建。
+    defer_browse = "07" in selected and "14" in selected
     for code in selected:
         if code in executed:
             continue
         print(f"[00] >>> {code} {STEP_KEYS[code]['name']} ...", flush=True)
-        item = run_step(args, code)
+        item = run_step(args, code,
+                        {"CARDO_DEFER_BROWSE": "1"} if code == "07" and defer_browse else None)
         steps.append(item)
         executed.add(code)
         tail = tail_line(item["stdoutTail"])

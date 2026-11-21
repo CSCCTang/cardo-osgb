@@ -23,7 +23,9 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+import time
 from datetime import datetime
 
 sys.dont_write_bytecode = True
@@ -58,6 +60,10 @@ class BuildError(Exception):
     """打包失败；message 里带字段路径或文件名，直接给业主/复核人看。"""
 
 
+class BrowseLocked(BuildError):
+    """旧版浏览包被别的进程占用，替换不了；调用方据此跳过本件成果并留痕。"""
+
+
 def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -85,6 +91,165 @@ def _sha256(path: str) -> str:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+# ---------------------------------------------------------------- 占用预检 / 复用判定
+def _ps_quote(text: str) -> str:
+    return "'" + str(text).replace("'", "''") + "'"
+
+
+def _own_server_pids(root_dir: str) -> list:
+    """列出以 root_dir 内可执行文件启动的浏览服务进程（caddy / python http.server）。
+
+    只认「镜像路径就在旧浏览包里」的进程——那是我们自己的 Start.bat 拉的，可以安全结束；
+    镜像在别处的 caddy/python 一律不碰（可能是用户别的服务，越界操作必须停下来问）。
+    """
+    if os.name != "nt":
+        return []
+    script = (
+        "$root = " + _ps_quote(os.path.abspath(root_dir)) + "\n"
+        "$names = @('caddy.exe','python.exe','pythonw.exe')\n"
+        "try {\n"
+        "  Get-CimInstance Win32_Process -ErrorAction Stop |\n"
+        "    Where-Object { $_.ExecutablePath -and $names -contains $_.Name -and\n"
+        "      $_.ExecutablePath.StartsWith($root, 'OrdinalIgnoreCase') } |\n"
+        "    ForEach-Object { [Console]::Out.WriteLine($_.ProcessId) }\n"
+        "} catch { }\n")
+    try:
+        proc = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                              capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    pids = []
+    for line in (proc.stdout or "").splitlines():
+        text = line.strip()
+        if text.isdigit():
+            pids.append(int(text))
+    return pids
+
+
+def _probe_replaceable(path: str) -> bool:
+    """在不破坏目录的前提下判断能不能整目录替换。
+
+    两个探针：①把目录改名再改回来（目录被某进程当 cwd 时会失败）；
+    ②把 tool/caddy.exe 改名再改回来（镜像文件被运行时也会失败）。
+    """
+    parent, base = os.path.dirname(path), os.path.basename(path)
+    probe = os.path.join(parent, ".probe-%d-%s" % (os.getpid(), base))
+    try:
+        os.rename(path, probe)
+    except OSError:
+        return False
+    try:
+        os.rename(probe, path)
+    except OSError:
+        return False
+    exe = os.path.join(path, "tool", "caddy.exe")
+    if os.path.isfile(exe):
+        try:
+            os.rename(exe, exe + ".probe")
+        except OSError:
+            return False
+        try:
+            os.rename(exe + ".probe", exe)
+        except OSError:
+            return False
+    return True
+
+
+def ensure_replaceable(final: str, log=print) -> tuple[bool, str]:
+    """旧浏览包能不能替换：先结束自己拉起的服务，再探针复检。
+
+    返回 (可替换?, 说明)。不可替换时不抛错——调用方跳过浏览包重建并留痕，
+    不让一件可选的成果把整条链卡死（实测：用户看完模型没关 caddy，07 卡 90 秒后整链中断）。
+    """
+    if not os.path.isdir(final):
+        return True, ""
+    notes = []
+    pids = _own_server_pids(final)
+    if pids:
+        for pid in pids:
+            try:
+                subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
+                               capture_output=True, timeout=20)
+            except (OSError, subprocess.SubprocessError):
+                pass
+        time.sleep(0.6)
+        notes.append("已结束上次遗留的浏览服务（PID %s）" % "、".join(str(p) for p in pids))
+    if _probe_replaceable(final):
+        return True, "；".join(notes)
+    notes.append("旧版模型浏览正被占用（不是本链拉起的进程）：请关闭浏览页/服务窗口，"
+                 "或运行 成果文件/成品版/模型浏览/Start.bat stop 后重跑 07")
+    return False, "；".join(notes)
+
+
+FINGERPRINT_INPUTS = (
+    ("model", MODEL_REL), ("indicators", IND_REL),
+    ("obb", VEC_OBB_REL), ("outline", VEC_OUTLINE_REL),
+)
+
+
+def fingerprint(workspace: str, asset: str, model_path: str | None = None,
+                indicators_path: str | None = None) -> tuple[str, dict]:
+    """浏览包输入指纹：模型/指标/矢量/参数/引擎版本/构建脚本自身。
+
+    任一输入变了就重建；全没变就复用——07 在 14 之后要重跑一次，
+    过去这第二跑会把 99 MB 浏览包原样重建一遍（实测 99.9 s，占全链一半）。
+    """
+    workspace = os.path.abspath(workspace)
+    parts = {
+        "builder": _sha256(os.path.abspath(__file__)),
+        "engine": _asset_version(asset),
+        "rasterRes": RASTER_RES,
+        "params": {key: _config_value(workspace, key)
+                   for key in ("projectName", "modelSourceName", "sceneId")},
+        "inputs": {},
+    }
+    for key, rel in FINGERPRINT_INPUTS:
+        if key == "model" and model_path:
+            path = os.path.abspath(model_path)
+        elif key == "indicators" and indicators_path:
+            path = os.path.abspath(indicators_path)
+        else:
+            path = os.path.join(workspace, rel)
+        parts["inputs"][key] = _sha256(path) if os.path.isfile(path) else None
+    digest = hashlib.sha256(json.dumps(parts, ensure_ascii=False, sort_keys=True)
+                            .encode("utf-8")).hexdigest()
+    return digest, parts
+
+
+def reusable(workspace: str, out_dir: str, asset: str, model_path: str | None = None,
+             indicators_path: str | None = None) -> dict | None:
+    """旧浏览包是否可原样复用（输入指纹一致且关键件都在）。可复用则返回摘要。"""
+    final = os.path.join(os.path.abspath(out_dir), PUBLIC_ROOT, DEMO_NAME)
+    build_json = os.path.join(final, "viewer", "BUILD.json")
+    if not (os.path.isdir(final) and os.path.isfile(build_json)
+            and os.path.isfile(os.path.join(final, "Start.bat"))
+            and os.path.isfile(os.path.join(final, "tool", "caddy.exe"))):
+        return None
+    try:
+        doc = _read_json(build_json)
+    except BuildError:
+        return None
+    digest, _parts = fingerprint(workspace, asset, model_path, indicators_path)
+    if doc.get("fingerprint") != digest:
+        return None
+    summary = doc.get("summary") or {}
+    return {
+        "dir": os.path.join(PUBLIC_ROOT, DEMO_NAME).replace("\\", "/"),
+        "project": doc.get("project"),
+        "engineVersion": (doc.get("engine") or {}).get("version"),
+        "files": doc.get("fileCount"),
+        "bytes": doc.get("bytes"),
+        "engineFiles": doc.get("engineFileCount"),
+        "engineBytes": doc.get("engineBytes"),
+        "layers": summary.get("layers"),
+        "indicators": summary.get("indicators"),
+        "charts": summary.get("charts"),
+        "reused": True,
+        "fingerprint": digest[:12],
+    }
 
 
 def _display_name(raw: str) -> str:
@@ -208,8 +373,17 @@ title Cardo Model Browser
 
 rem ============================================================
 rem  Cardo model browser - local static server + browser
-rem  No install needed. Close the minimized server window to stop.
+rem  Start : double-click this file.
+rem  Stop  : run "Start.bat stop" (reads server.pid), or close
+rem          the minimized server window.
+rem  No install needed.
 rem ============================================================
+
+if /i "%~1"=="stop" goto stop_server
+if /i "%~1"=="--stop" goto stop_server
+
+rem ---- 0. clear a stale pid file from a previous session ----
+if exist server.pid del server.pid >nul 2>nul
 
 rem ---- 1. pick a free port (8817 -> 8820) ----
 set "PORT="
@@ -257,6 +431,13 @@ for /L %%I in (1,1,10) do (
 if not defined READY goto start_failed
 echo [3/4] server is up
 
+rem ---- 3b. remember the server PID so "Start.bat stop" can stop it ----
+set "SRVPID="
+for /f "tokens=5" %%A in ('netstat -ano ^| findstr /r /c:":%PORT% .*LISTENING"') do (
+    if not defined SRVPID set "SRVPID=%%A"
+)
+if defined SRVPID (echo %SRVPID%)>server.pid
+
 rem ---- 4. open 3D first, then 2D in a second tab ----
 echo [4/4] opening browser
 start "" "http://127.0.0.1:%PORT%/viewer/3d/index.html"
@@ -300,6 +481,34 @@ echo.
 pause
 popd
 exit /b 1
+
+:stop_server
+echo.
+echo   [stop] stopping the Cardo model browser server ...
+if not exist server.pid (
+    echo   No server.pid in this folder - nothing started from here.
+    popd
+    exit /b 0
+)
+set "SRVPID="
+set /p SRVPID=<server.pid
+if not defined SRVPID (
+    echo   server.pid is empty - nothing to stop.
+    del server.pid >nul 2>nul
+    popd
+    exit /b 0
+)
+echo   PID %SRVPID%
+taskkill /PID %SRVPID% /T /F >nul 2>nul
+if errorlevel 1 (
+    echo   Process %SRVPID% is not running any more.
+) else (
+    echo   Server stopped.
+)
+del server.pid >nul 2>nul
+echo.
+popd
+exit /b 0
 """
     data = text.replace("\r\n", "\n").replace("\n", "\r\n").encode("ascii")
     if data.startswith(b"\xef\xbb\xbf"):
@@ -318,7 +527,8 @@ def _write_help(path: str, project: dict, version: str, built_at: str) -> None:
 一、怎么打开
   1. 双击 Start.bat，浏览器会自动打开三维页，并另开一个二维页标签。
   2. 包内自带免安装服务（tool\\caddy.exe），不需要联网、不需要安装软件、不需要账号。
-  3. 关闭启动时最小化的服务窗口即停止服务；再次双击会自动换端口。
+  3. 停止服务：运行 `Start.bat stop`（按 server.pid 精确结束），或直接关闭启动时最小化的
+     服务窗口。再次双击会自动换端口；查看模型时请勿删除 server.pid。
 
 二、看什么
   三维页：整体模型、贴图、LOD 逐级加载；鼠标左键旋转、滚轮缩放。
@@ -336,6 +546,7 @@ def _write_help(path: str, project: dict, version: str, built_at: str) -> None:
   tool\\            包内静态服务 caddy 2.10.0（Apache-2.0，许可随附）
   scripts\\         正射/分类栅格的生成脚本快照
   许可登记.json     第三方组件与许可
+  server.pid        运行期记录的服务进程号（双击 Start.bat 后生成，停服后可删）
 
 五、版本与校验
   引擎版本见 viewer\\VERSION.json；本次快照的体积、文件数与 sha256 清单见 viewer\\BUILD.json。
@@ -387,7 +598,8 @@ def _self_containment_scan(staging: str, project_dir: str) -> list:
     return hits
 
 
-def _engine_manifest(staging: str, version: str, built_at: str, project_rel: str) -> dict:
+def _engine_manifest(staging: str, version: str, built_at: str, project_rel: str,
+                     fingerprint: str = "", summary: dict | None = None) -> dict:
     """全包逐件清单：08 按它核对文件数与 sha256，因此必须覆盖整个浏览目录。"""
     skip = {"viewer/BUILD.json", "viewer/BUILD-SHA256.txt"}
     engine_roots = ("viewer", "tool", "scripts")
@@ -415,6 +627,9 @@ def _engine_manifest(staging: str, version: str, built_at: str, project_rel: str
         },
         "builtAt": built_at,
         "project": project_rel,
+        # 输入指纹：07 重跑时据此判断能否原样复用（见 reusable()）
+        "fingerprint": fingerprint,
+        "summary": dict(summary or {}),
         "fileCount": len(files),
         "bytes": sum(item["bytes"] for item in files),
         "engineFileCount": len(engine_files),
@@ -481,18 +696,22 @@ def build(workspace: str, out_dir: str, asset_dir: str | None = None,
     final = os.path.join(out_dir, PUBLIC_ROOT, DEMO_NAME)
     if os.path.isdir(staging):
         shutil.rmtree(staging)
+    # 先做占用预检：旧版浏览页还开着（tool\caddy.exe 在跑）时，先结束自己拉起的服务；
+    # 结束不了就明确报「不可替换」，由调用方跳过本件成果并留痕——不再静默卡 90 秒后中断全链。
+    ok, note = ensure_replaceable(final, log)
+    if note:
+        log("[07] 模型浏览：" + note)
+    if not ok:
+        raise BrowseLocked(note.replace("；", "；\n  "))
     # 先删旧成品：本轮任何一步失败都不留下「看起来像新成果」的旧目录
     if os.path.isdir(final):
         try:
             shutil.rmtree(final)
         except PermissionError:
-            # 用户双击过 Start.bat 看效果时，tool\caddy.exe 还在跑，会锁住旧目录。
-            # 不吞掉，改成能照做的提示，避免用户只看到一行 PermissionError。
-            raise BuildError(
+            raise BrowseLocked(
                 "旧版模型浏览正在被占用，无法替换：%s\n"
-                "  多半是浏览页还开着（tool\\caddy.exe 在运行）。请先关闭 Start.bat 打开的"
-                "浏览页与服务窗口，或在任务管理器结束 caddy.exe，再重跑本步骤。"
-                % final)
+                "  多为浏览页还开着（tool\\caddy.exe 在运行）。请先运行 Start.bat stop，"
+                "或关闭浏览页与服务窗口，再重跑本步骤。" % final)
     os.makedirs(staging)
     _copy_engine(asset, staging)
 
@@ -587,7 +806,12 @@ def build(workspace: str, out_dir: str, asset_dir: str | None = None,
     _validate(asset, staging, project_rel)
 
     version = _asset_version(asset)
-    manifest = _engine_manifest(staging, version, built_at, project_rel)
+    digest, _parts = fingerprint(workspace, asset, model_path, ind_path)
+    manifest = _engine_manifest(staging, version, built_at, project_rel, digest, {
+        "layers": len(cfg["layers"]),
+        "indicators": len(cfg["indicators"]["items"]),
+        "charts": len(cfg["charts"]),
+    })
     hits = _self_containment_scan(staging, pkg_dir)
     if hits:
         raise BuildError("自足性检查未通过（%d 处）：%s" % (len(hits), "；".join(hits[:8])))
@@ -609,6 +833,8 @@ def build(workspace: str, out_dir: str, asset_dir: str | None = None,
         "layers": len(cfg["layers"]),
         "indicators": len(cfg["indicators"]["items"]),
         "charts": len(cfg["charts"]),
+        "reused": False,
+        "fingerprint": digest[:12],
     }
 
 

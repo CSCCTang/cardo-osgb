@@ -630,12 +630,19 @@ def boundary_scan(root: str, checks: list, skills_root: str | None = None) -> di
     build_path = os.path.join(out_dir, *build_rel.split("/"))
     browse_ok = False
     browse_note = f"；模型浏览 {len(browse_files)} 件"
-    # 07 因缺浏览引擎（assets/viewer）主动跳过时，会留一份标记；此时不把浏览包当必需件。
-    viewer_skip = os.path.isfile(os.path.join(root, "过程文件", "07-成果导出",
-                                              "模型浏览_未生成.json"))
+    # 07 主动跳过浏览包时（缺 assets/viewer / 延后到重跑 / 旧包被占用）会留一份标记；
+    # 此时不把浏览包当必需件。跳过原因写在标记里，报告直接带出来。
+    viewer_skip_rel = os.path.join("过程文件", "07-成果导出", "模型浏览_未生成.json")
+    viewer_skip = os.path.isfile(os.path.join(root, viewer_skip_rel))
     if viewer_skip:
         browse_ok = True
-        browse_note += "，缺 assets/viewer 已按说明跳过（07 已留痕）"
+        reason = ""
+        try:
+            with open(os.path.join(root, viewer_skip_rel), encoding="utf-8") as fh:
+                reason = str((json.load(fh) or {}).get("reason") or "")
+        except (OSError, ValueError):
+            pass
+        browse_note += "，07 已说明跳过%s（已留痕）" % ("（%s）" % reason if reason else "")
     elif not os.path.isfile(build_path):
         browse_note += "，缺 viewer/BUILD.json 哈希清单"
     else:
@@ -653,7 +660,8 @@ def boundary_scan(root: str, checks: list, skills_root: str | None = None) -> di
                 rel_path = str(item.get("path") or "").replace("\\", "/")
                 if rel_path:
                     listed_map[BROWSE_REL + rel_path] = item
-            skip = {build_rel, BROWSE_REL + "viewer/BUILD-SHA256.txt"}
+            skip = {build_rel, BROWSE_REL + "viewer/BUILD-SHA256.txt",
+                    BROWSE_REL + "server.pid"}
             actual = [n for n in browse_files if n not in skip]
             problems = []
             if build_doc.get("fileCount") != len(actual):
@@ -690,9 +698,13 @@ def boundary_scan(root: str, checks: list, skills_root: str | None = None) -> di
           sorted(expect) == sorted(set(names) - set(extra)) and extra_ok
           and all(n in names for n in bundle_need) and browse_ok,
           f"成果 {len(names)} 件（依据 {len(extra)} 个）{browse_note}；清单：{names}")
-    check(checks, "E-06", "成品版至少一件且可直接交付",
-          any(n.startswith("成品版/") and n.endswith(("_成品版.docx", "_成品版.xlsx"))
-              for n in names), "缺成品版目录或成品版文件")
+    clean_files = [n for n in names
+                   if n.startswith("成品版/") and n.endswith(("_成品版.docx", "_成品版.xlsx"))]
+    check(checks, "E-06", "成品版至少一件且可直接交付", bool(clean_files),
+          # detail 只在失败时有意义：旧版写死一句「缺成品版…」，pass 时也跟着输出，
+          # 报告里就成了「状态 pass、说明说缺件」的自相矛盾。
+          f"成品版 {len(clean_files)} 件：" + "、".join(clean_files) if clean_files
+          else "缺成品版目录或成品版文件（成品版/*_成品版.docx 或 .xlsx）")
     return {"violations": violations, "counts": counts, "outputs": names}
 
 
