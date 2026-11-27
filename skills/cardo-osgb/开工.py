@@ -57,7 +57,7 @@ TOOLS = [
 ]
 # 两件资产（浏览引擎 + 转换器）都随包分发，装完即用；缺了就是安装包不完整，不是「让你去下载」。
 VIEWER_HINT = ("包内缺模型浏览引擎 assets/viewer（安装包不完整）：请重新安装本插件"
-               "（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.4）。")
+               "（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.5）。")
 
 
 def viewer_ready() -> bool:
@@ -903,7 +903,7 @@ def _main(argv=None) -> int:
         say("")
         say("  [提示] 包内缺模型浏览引擎（assets/viewer）：安装包不完整，07 会跳过「模型浏览」。")
         say(f"    期望：{norm(SKILL / 'assets/viewer/tool/caddy.exe')}")
-        say("    处置：重新安装本插件（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.4）")
+        say("    处置：重新安装本插件（Release tgz 或 github:CSCCTang/cardo-osgb#v0.1.5）")
         say("")
     else:
         say(f"      模型浏览引擎：在位（{norm(SKILL / 'assets/viewer')}）")

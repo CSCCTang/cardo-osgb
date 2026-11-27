@@ -1,6 +1,6 @@
 {
   "name": "cardo-osgb",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Cardo 低空解析流水线：OSGB 转 3D Tiles、模型体检与现状指标。",
   "type": "module",
   "main": "index.js",
@@ -9,6 +9,7 @@
     "cordis.patch.yml",
     "skills",
     "README.md",
+    "CHANGELOG.md",
     "assets",
     "requirements.txt",
     "LICENSE",

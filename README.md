@@ -1,8 +1,8 @@
 # cardo-osgb
 
 > 安装（二选一）：
-> `dsh plugin --profile <profile> add github:CSCCTang/cardo-osgb#v0.1.4`
-> `dsh plugin --profile <profile> add <本地路径>\cardo-osgb-0.1.4.tgz`
+> `dsh plugin --profile <profile> add github:CSCCTang/cardo-osgb#v0.1.5`
+> `dsh plugin --profile <profile> add <本地路径>\cardo-osgb-0.1.5.tgz`
 
 低空解析：给一个 OSGB 倾斜模型包，产出 3D Tiles、模型体检报告、现状指标与模型浏览页。
 
@@ -33,8 +33,8 @@
 
 ## 许可证与版本
 
-- 版本 `0.1.4`；许可证 **AGPL-3.0-or-later**，见 [LICENSE](LICENSE) 与 [NOTICE](NOTICE)。
-- 第三方组件与许可证见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。
+- 版本 `0.1.5`；许可证 **AGPL-3.0-or-later**，见 [LICENSE](LICENSE) 与 [NOTICE](NOTICE)。
+- 第三方组件与许可证见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)；变更见 [CHANGELOG.md](CHANGELOG.md)。
 - 运行环境：Windows；Python ≥ 3.11；dsh ≥ 0.2.2-rc.5。
 
 ## 文档
